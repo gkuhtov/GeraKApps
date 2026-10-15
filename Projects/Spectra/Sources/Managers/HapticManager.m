@@ -2,6 +2,7 @@
 
 @implementation HapticManager {
     UISelectionFeedbackGenerator *_selectionGen;
+    UIImpactFeedbackGenerator *_lightGen;
     UIImpactFeedbackGenerator *_mediumGen;
     UIImpactFeedbackGenerator *_rigidGen;
 }
@@ -18,6 +19,7 @@
 - (instancetype)init {
     if (self = [super init]) {
         _selectionGen = [[UISelectionFeedbackGenerator alloc] init];
+        _lightGen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleLight];
         _mediumGen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
         _rigidGen = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleRigid];
     }
@@ -26,6 +28,10 @@
 
 - (void)triggerSelectionTick {
     [_selectionGen selectionChanged];
+}
+
+- (void)triggerRadarPing {
+    [_lightGen impactOccurredWithIntensity:0.65];
 }
 
 - (void)triggerWarningPulse {
