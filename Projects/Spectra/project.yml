@@ -9,6 +9,7 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+        optional: true
         excludes:
           - "**/Info.plist"
     info:
