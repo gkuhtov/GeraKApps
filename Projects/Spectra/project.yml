@@ -16,14 +16,23 @@ targets:
       path: Configs/Info.plist
       properties:
         CFBundleIdentifier: com.gerak.spectra
+        CFBundleName: Spectra
+        CFBundleDisplayName: Spectra
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         UILaunchStoryboardName: ""
         UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        NSBluetoothAlwaysUsageDescription: "Требуется для сканирования BLE-устройств и отображения их на радаре Spectra."
+        NSBluetoothPeripheralUsageDescription: "Требуется для доступа к радиомодулю Bluetooth."
+        NSLocationWhenInUseUsageDescription: "Требуется для работы компаса и ориентации радара по азимуту."
+        UIRequiredDeviceCapabilities:
+          - arm64
     settings:
       base:
         PRODUCT_NAME: Spectra
+        PRODUCT_BUNDLE_IDENTIFIER: com.gerak.spectra
         INFOPLIST_FILE: Configs/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         CODE_SIGNING_ALLOWED: NO

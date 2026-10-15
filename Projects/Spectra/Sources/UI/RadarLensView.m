@@ -126,7 +126,7 @@
         }
         
         UILabel *label = [blipView viewWithTag:102];
-        NSString *shortName = node.displayName.length > 9 ? [node.displayName substringToIndex:9] : node.displayName;
+        NSString *shortName = (node.displayName && node.displayName.length > 9) ? [node.displayName substringToIndex:9] : (node.displayName ?: @"NODE");
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
         CGFloat radius = node.normalizedDistance * maxRadius;

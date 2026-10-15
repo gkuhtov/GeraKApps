@@ -13,16 +13,18 @@
 - (instancetype)init {
     if (self = [super init]) {
         _nodesMap = [NSMutableDictionary dictionary];
-        _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:dispatch_get_main_queue()];
     }
     return self;
 }
 
 - (void)startScanning {
-    if (_centralManager.state == CBManagerStatePoweredOn) {
+    if (!_centralManager) {
+        _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:dispatch_get_main_queue()];
+    } else if (_centralManager.state == CBManagerStatePoweredOn) {
         [_centralManager scanForPeripheralsWithServices:nil
                                                 options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @YES}];
     }
+    
     if (!_cleanupTimer) {
         _cleanupTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
                                                          target:self
@@ -33,14 +35,17 @@
 }
 
 - (void)stopScanning {
-    [_centralManager stopScan];
+    if (_centralManager.state == CBManagerStatePoweredOn) {
+        [_centralManager stopScan];
+    }
     [_cleanupTimer invalidate];
     _cleanupTimer = nil;
 }
 
 - (void)centralManagerDidUpdateState:(CBCentralManager *)central {
     if (central.state == CBManagerStatePoweredOn) {
-        [self startScanning];
+        [_centralManager scanForPeripheralsWithServices:nil
+                                                options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @YES}];
     }
 }
 
@@ -49,24 +54,24 @@
      advertisementData:(NSDictionary<NSString *,id> *)advertisementData
                   RSSI:(NSNumber *)RSSI {
     
+    if (!peripheral || !peripheral.identifier || !RSSI) return;
+    
     NSInteger rssiValue = [RSSI integerValue];
-    // Отсекаем ошибочный статус 127 и слишком слабый сигнал
     if (rssiValue == 127 || rssiValue < kBleMinRssiThreshold) return;
     
     NSString *uuid = peripheral.identifier.UUIDString;
+    if (uuid.length == 0) return;
+    
     SpectraRadarNode *node = _nodesMap[uuid];
     
     if (!node) {
         node = [[SpectraRadarNode alloc] init];
         node.identifier = uuid;
-        
-        // Стабильный угол на основе хэша UUID, чтобы устройство держало свой сектор на радаре
         NSUInteger hashVal = [uuid hash];
         node.angleRadians = ((hashVal % 360) * M_PI) / 180.0;
         node.rssi = rssiValue;
         _nodesMap[uuid] = node;
     } else {
-        // Плавное сглаживание скачков сигнала RSSI
         node.rssi = (NSInteger)((node.rssi * 0.7) + (rssiValue * 0.3));
     }
     
@@ -74,10 +79,10 @@
     if (localName.length > 0) {
         node.displayName = localName;
     } else if (!node.displayName) {
-        node.displayName = [NSString stringWithFormat:@"BLE-%@", [uuid substringToIndex:4]];
+        NSString *prefix = uuid.length >= 4 ? [uuid substringToIndex:4] : uuid;
+        node.displayName = [NSString stringWithFormat:@"BLE-%@", prefix];
     }
     
-    // Нормализация дистанции от 0.12 (вплотную) до 0.92 (на краю сетки)
     double clampedRssi = MAX((double)kBleMinRssiThreshold, MIN((double)kBleMaxRssiThreshold, (double)node.rssi));
     double ratio = ((double)kBleMaxRssiThreshold - clampedRssi) / (double)(kBleMaxRssiThreshold - kBleMinRssiThreshold);
     node.normalizedDistance = 0.12 + (ratio * 0.80);
@@ -92,7 +97,7 @@
     
     for (NSString *key in _nodesMap) {
         SpectraRadarNode *node = _nodesMap[key];
-        if ([now timeIntervalSinceDate:node.lastSeen] > kBleNodeStaleTimeout) {
+        if (node.lastSeen && [now timeIntervalSinceDate:node.lastSeen] > kBleNodeStaleTimeout) {
             [keysToRemove addObject:key];
         }
     }
@@ -104,7 +109,9 @@
 }
 
 - (void)notifyDelegate {
-    [self.delegate didUpdateRadarNodes:[_nodesMap allValues]];
+    if (self.delegate) {
+        [self.delegate didUpdateRadarNodes:[_nodesMap allValues]];
+    }
 }
 
 @end
