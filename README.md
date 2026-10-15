@@ -4,7 +4,6 @@
 
 ### Лаборатория экспериментов для iPhone
 
-**🧪 Здесь iPhone ставят под сомнительные эксперименты. Иногда даже получается весело.**
 
 [Исходный код](https://github.com/gkuhtov/GeraKLab) · [Экосистема GeraK](https://github.com/gkuhtov/GeraKProtocol)
 
