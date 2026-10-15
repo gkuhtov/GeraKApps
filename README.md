@@ -4,9 +4,11 @@
 
 ### Лаборатория экспериментов для iPhone
 
-**Бесполезные исследования. Полезное настроение.**
+**Интерактивные сценарии, игровые эффекты и хорошее настроение.**
 
 [Исходный код](https://github.com/gkuhtov/GeraKLab) · [Экосистема GeraK](https://github.com/gkuhtov/GeraKProtocol)
+
+[Профиль автора](https://github.com/gkuhtov)
 
 </div>
 
@@ -64,12 +66,10 @@
 
 GeraKLab — самостоятельный проект экосистемы GeraK. Он описан в [GeraKProtocol](https://github.com/gkuhtov/GeraKProtocol), который служит документацией и не является программной зависимостью приложения.
 
-## 👤 Авторство
-
-**Гера Кухтов / madebygood**
-
-Экосистема GeraK: [GitHub-профиль](https://github.com/gkuhtov).
-
 ---
 
-<sub>GeraKLab · Документация проекта · Русский язык</sub>
+## 👤 Авторство
+
+**Гера Кухтов / madebygood** · [GitHub](https://github.com/gkuhtov)
+
+<sub>Экосистема GeraK · Документация на русском языке</sub>
