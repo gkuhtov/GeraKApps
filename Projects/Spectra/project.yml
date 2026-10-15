@@ -7,8 +7,10 @@ targets:
     platform: iOS
     deploymentTarget: "15.0"
     sources:
-      - Sources
-      - Resources
+      - path: Sources
+      - path: Resources
+        excludes:
+          - "**/Info.plist"
     info:
       path: Configs/Info.plist
       properties:
