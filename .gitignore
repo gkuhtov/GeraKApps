@@ -1,0 +1,67 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+DerivedData/
+build/
+Build/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive/
+xcuserdata/
+*.xccurrentversion
+*.xccurrentversion
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+# Keep Package.resolved tracked for reproducible builds.
+
+# CocoaPods / Carthage
+Pods/
+Carthage/Build/
+
+# Objective-C build artifacts
+*.o
+*.a
+*.d
+*.dia
+*.gcda
+*.gcno
+
+# IDE / tooling
+.idea/
+.vscode/
+.swiftlint.yml.cache
+.swiftlint_cache/
+
+# Logs and generated output
+*.log
+*.tmp
+*.bak
+*.orig
+
+# Fastlane generated output (keep Fastfile and Matchfile)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Local secrets and signing material
+.env
+.env.*
+!.env.example
+*.p12
+*.mobileprovision
+*.cer
+*.key
+*.pem
+Secrets/

@@ -10,12 +10,12 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: GeraKLab
+      - path: .
         excludes:
           - "Info.plist"
           - "entitlements.plist"
     info:
-      path: GeraKLab/Info.plist
+      path: Info.plist
       properties:
         CFBundleDisplayName: "GeraKLab"
         CFBundleShortVersionString: "1.0"
@@ -24,7 +24,7 @@ targets:
         NSMicrophoneUsageDescription: "GeraKLab требует доступ к микрофону для замера акустических перегрузок и стресс-тестирования звукового тракта."
         NSCameraUsageDescription: "GeraKLab использует камеру и фотовспышку для фотоплетизмографии и высокочастотного стресс-теста модуля."
     entitlements:
-      path: GeraKLab/entitlements.plist
+      path: entitlements.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gerak.geraklab

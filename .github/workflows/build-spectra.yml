@@ -1,0 +1,50 @@
+name: Сборка Spectra IPA
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Projects/Spectra/**"
+      - ".github/workflows/build-spectra.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "Projects/Spectra/**"
+      - ".github/workflows/build-spectra.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: Projects/Spectra
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v4
+      - name: Установка XcodeGen
+        working-directory: .
+        run: brew install xcodegen
+      - name: Генерация проекта Xcode
+        run: xcodegen generate
+      - name: Сборка приложения
+        run: |
+          xcodebuild build \
+            -project Spectra.xcodeproj \
+            -scheme Spectra \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+      - name: Упаковка IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Spectra.app Payload/
+          zip -qr Spectra.ipa Payload
+          rm -rf Payload
+      - name: Публикация IPA как артефакта
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spectra-IPA
+          path: Projects/Spectra/Spectra.ipa
+          retention-days: 14

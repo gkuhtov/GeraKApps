@@ -1,0 +1,12 @@
+{
+  "appName": "Spectra",
+  "discovery": {
+    "bonjourEnabled": true,
+    "probeTimeoutSeconds": 2,
+    "maxConcurrentProbes": 32
+  },
+  "privacy": {
+    "storeResultsLocally": true,
+    "uploadNetworkData": false
+  }
+}

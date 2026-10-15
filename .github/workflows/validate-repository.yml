@@ -1,0 +1,28 @@
+name: Проверка структуры репозитория
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получение исходного кода
+        uses: actions/checkout@v4
+      - name: Проверка обязательных файлов
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f README.md
+          test -f .gitignore
+          test -f Projects/GeraKLab/project.yml
+          test -f Projects/GeraKLab/Info.plist
+          test -f Projects/Spectra/project.yml
+          test -f Projects/Spectra/README.md
+          test -f .github/workflows/build-geraklab.yml
+          test -f .github/workflows/build-spectra.yml
+          echo "Структура монорепозитория проверена."
