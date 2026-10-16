@@ -2,11 +2,22 @@
 #import "SpectraConfig.h"
 #import "HapticManager.h"
 
+@interface TargetTapButton : UIButton
+@end
+
+@implementation TargetTapButton
+// Увеличенная невидимая зона тапа 44x44 pt для комфортного нажатия
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    CGRect expanded = CGRectInset(self.bounds, -15, -15);
+    return CGRectContainsPoint(expanded, point);
+}
+@end
+
 @implementation RadarLensView {
     CAShapeLayer *_gridLayer;
     CAShapeLayer *_sweepLayer;
     UIView *_nodesContainer;
-    NSMutableDictionary<NSString *, UIButton *> *_nodeButtons;
+    NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
     CADisplayLink *_sweepTracker;
     NSDate *_sweepStartDate;
@@ -35,8 +46,9 @@
         _sweepLayer.frame = self.bounds;
         [self.layer addSublayer:_sweepLayer];
         
-        _lockReticle = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 26, 26)];
+        _lockReticle = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 22, 22)];
         _lockReticle.layer.borderWidth = 1.5;
+        _lockReticle.userInteractionEnabled = NO;
         _lockReticle.hidden = YES;
         [_nodesContainer addSubview:_lockReticle];
         
@@ -87,7 +99,7 @@
     _sweepLayer.strokeColor = themeColor.CGColor;
     _lockReticle.layer.borderColor = themeColor.CGColor;
     
-    for (UIButton *btn in _nodeButtons.allValues) {
+    for (TargetTapButton *btn in _nodeButtons.allValues) {
         UIView *dot = [btn viewWithTag:101];
         UILabel *lbl = [btn viewWithTag:102];
         dot.backgroundColor = themeColor;
@@ -121,21 +133,23 @@
     
     for (SpectraRadarNode *node in nodes) {
         [activeIDs addObject:node.identifier];
-        UIButton *btn = _nodeButtons[node.identifier];
+        TargetTapButton *btn = _nodeButtons[node.identifier];
         
         if (!btn) {
-            btn = [UIButton buttonWithType:UIButtonTypeCustom];
-            btn.frame = CGRectMake(0, 0, 120, 32);
+            btn = [TargetTapButton buttonWithType:UIButtonTypeCustom];
+            btn.frame = CGRectMake(0, 0, 115, 20);
             [btn addTarget:self action:@selector(nodeTapped:) forControlEvents:UIControlEventTouchUpInside];
             
-            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(4, 12, kTargetDotSize, kTargetDotSize)];
+            // Круглешок строго в начале кнопки (x: 0..8)
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 6, kTargetDotSize, kTargetDotSize)];
             dot.tag = 101;
             dot.userInteractionEnabled = NO;
             dot.backgroundColor = _themeColor;
             dot.layer.cornerRadius = kTargetDotSize / 2.0;
             [btn addSubview:dot];
             
-            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 8, 6, 95, 20)];
+            // Текст правее кругляшка
+            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 5, 0, 100, 20)];
             label.tag = 102;
             label.userInteractionEnabled = NO;
             label.font = [UIFont fontWithName:@"Courier-Bold" size:10];
@@ -152,13 +166,14 @@
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
         CGFloat radius = node.normalizedDistance * maxRadius;
-        CGFloat x = center.x + sin(node.angleRadians) * radius;
-        CGFloat y = center.y - cos(node.angleRadians) * radius;
+        CGFloat targetDotX = center.x + sin(node.angleRadians) * radius;
+        CGFloat targetDotY = center.y - cos(node.angleRadians) * radius;
         
+        // Центрируем кругляшок кнопки ровно по координатам цели
         [UIView animateWithDuration:0.25 animations:^{
-            btn.center = CGPointMake(x + 50, y);
+            btn.center = CGPointMake(targetDotX + (btn.bounds.size.width / 2.0) - (kTargetDotSize / 2.0), targetDotY);
             if ([node.identifier isEqualToString:self->_selectedNodeID]) {
-                self->_lockReticle.center = CGPointMake(x + 8, y);
+                self->_lockReticle.center = CGPointMake(targetDotX, targetDotY);
             }
         }];
     }
@@ -166,7 +181,7 @@
     NSArray *allKeys = [_nodeButtons allKeys];
     for (NSString *key in allKeys) {
         if (![activeIDs containsObject:key]) {
-            UIButton *oldBtn = _nodeButtons[key];
+            TargetTapButton *oldBtn = _nodeButtons[key];
             [oldBtn removeFromSuperview];
             [_nodeButtons removeObjectForKey:key];
             if ([key isEqualToString:_selectedNodeID]) {
@@ -176,14 +191,17 @@
     }
 }
 
-- (void)nodeTapped:(UIButton *)sender {
+- (void)nodeTapped:(TargetTapButton *)sender {
     for (NSString *key in _nodeButtons) {
         if (_nodeButtons[key] == sender) {
             _selectedNodeID = key;
             for (SpectraRadarNode *node in _currentNodes) {
                 if ([node.identifier isEqualToString:key]) {
                     UIView *dot = [sender viewWithTag:101];
-                    _lockReticle.center = [sender convertPoint:dot.center toView:_nodesContainer];
+                    CGPoint dotCenterInContainer = [sender convertPoint:dot.center toView:_nodesContainer];
+                    
+                    // Центрируем прицел строго на круглешок
+                    _lockReticle.center = dotCenterInContainer;
                     _lockReticle.hidden = NO;
                     
                     _lockReticle.transform = CGAffineTransformMakeScale(1.8, 1.8);
@@ -217,7 +235,7 @@
         if (fabs(currentSweepAngle - node.angleRadians) < 0.12) {
             if (!node.lastPingedBySweep || [now timeIntervalSinceDate:node.lastPingedBySweep] > (kRadarSweepDuration * 0.8)) {
                 node.lastPingedBySweep = now;
-                UIButton *btn = _nodeButtons[node.identifier];
+                TargetTapButton *btn = _nodeButtons[node.identifier];
                 if (btn) {
                     btn.alpha = 1.0;
                     [[HapticManager shared] triggerRadarPing];

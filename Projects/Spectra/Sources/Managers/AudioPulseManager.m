@@ -1,10 +1,11 @@
 #import "AudioPulseManager.h"
-#import <AudioToolbox/AudioToolbox.h>
 #import "SpectraConfig.h"
 
 @implementation AudioPulseManager {
     NSTimer *_pulseTimer;
     double _currentEmf;
+    AVAudioPlayer *_player;
+    NSData *_clickAudioData;
 }
 
 + (instancetype)shared {
@@ -21,12 +22,68 @@
         _isMuted = YES;
         _currentEmf = 0.0;
         
-        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
-                                         withOptions:AVAudioSessionCategoryOptionMixWithOthers
-                                               error:nil];
-        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+        [self configureAudioSession];
+        [self generateTacticalClickPCM];
     }
     return self;
+}
+
+- (void)configureAudioSession {
+    AVAudioSession *session = [AVAudioSession sharedInstance];
+    [session setCategory:AVAudioSessionCategoryPlayback
+             withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                   error:nil];
+    [session setActive:YES error:nil];
+}
+
+// Генерируем в оперативной памяти 15-миллисекундный тактический щелчок (WAV PCM 44.1kHz)
+- (void)generateTacticalClickPCM {
+    const int sampleRate = 44100;
+    const double duration = 0.015; // 15 миллисекунд
+    const int numSamples = (int)(sampleRate * duration);
+    
+    NSMutableData *pcm = [NSMutableData data];
+    for (int i = 0; i < numSamples; i++) {
+        double t = (double)i / sampleRate;
+        // Затухающий высокочастотный синус (1800 Hz) с резкой атакой
+        double decay = exp(-t * 300.0);
+        double sample = sin(2.0 * M_PI * 1800.0 * t) * decay;
+        int16_t intSample = (int16_t)(sample * 30000.0);
+        [pcm appendBytes:&intSample length:sizeof(int16_t)];
+    }
+    
+    // Формируем стандартный WAV-заголовок
+    NSMutableData *wav = [NSMutableData data];
+    int32_t dataSize = (int32_t)pcm.length;
+    int32_t chunkSize = 36 + dataSize;
+    
+    [wav appendBytes:"RIFF" length:4];
+    [wav appendBytes:&chunkSize length:4];
+    [wav appendBytes:"WAVE" length:4];
+    [wav appendBytes:"fmt " length:4];
+    int32_t subchunk1Size = 16;
+    int16_t audioFormat = 1; // PCM
+    int16_t numChannels = 1; // Mono
+    int32_t sRate = sampleRate;
+    int32_t byteRate = sampleRate * sizeof(int16_t);
+    int16_t blockAlign = sizeof(int16_t);
+    int16_t bitsPerSample = 16;
+    
+    [wav appendBytes:&subchunk1Size length:4];
+    [wav appendBytes:&audioFormat length:2];
+    [wav appendBytes:&numChannels length:2];
+    [wav appendBytes:&sRate length:4];
+    [wav appendBytes:&byteRate length:4];
+    [wav appendBytes:&blockAlign length:2];
+    [wav appendBytes:&bitsPerSample length:2];
+    
+    [wav appendBytes:"data" length:4];
+    [wav appendBytes:&dataSize length:4];
+    [wav appendData:pcm];
+    
+    _clickAudioData = wav;
+    _player = [[AVAudioPlayer alloc] initWithData:_clickAudioData error:nil];
+    [_player prepareToPlay];
 }
 
 - (void)updateWithEmf:(double)microTeslas {
@@ -36,11 +93,11 @@
         return;
     }
     
-    double clamped = MAX(20.0, MIN(300.0, microTeslas));
-    double factor = (clamped - 20.0) / 280.0;
-    NSTimeInterval interval = 0.9 - (factor * 0.81);
+    double clamped = MAX(20.0, MIN(350.0, microTeslas));
+    double factor = (clamped - 20.0) / 330.0;
+    NSTimeInterval interval = 0.85 - (factor * 0.77);
     
-    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.12) {
+    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.1) {
         [_pulseTimer invalidate];
         _pulseTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                        target:self
@@ -52,7 +109,11 @@
 
 - (void)playTick {
     if (_isMuted) return;
-    AudioServicesPlayAlertSound(1104);
+    if (_player.isPlaying) {
+        [_player stop];
+        _player.currentTime = 0;
+    }
+    [_player play];
 }
 
 - (void)stop {
