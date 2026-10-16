@@ -19,7 +19,7 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        _isMuted = YES;
+        _isMuted = NO; // По умолчанию звук активен
         _currentEmf = 0.0;
         
         [self configureAudioSession];
@@ -36,23 +36,20 @@
     [session setActive:YES error:nil];
 }
 
-// Генерируем в оперативной памяти 15-миллисекундный тактический щелчок (WAV PCM 44.1kHz)
 - (void)generateTacticalClickPCM {
     const int sampleRate = 44100;
-    const double duration = 0.015; // 15 миллисекунд
+    const double duration = 0.012; // 12 мс резкий щелчок
     const int numSamples = (int)(sampleRate * duration);
     
     NSMutableData *pcm = [NSMutableData data];
     for (int i = 0; i < numSamples; i++) {
         double t = (double)i / sampleRate;
-        // Затухающий высокочастотный синус (1800 Hz) с резкой атакой
-        double decay = exp(-t * 300.0);
-        double sample = sin(2.0 * M_PI * 1800.0 * t) * decay;
-        int16_t intSample = (int16_t)(sample * 30000.0);
+        double decay = exp(-t * 400.0);
+        double sample = sin(2.0 * M_PI * 2200.0 * t) * decay;
+        int16_t intSample = (int16_t)(sample * 31000.0);
         [pcm appendBytes:&intSample length:sizeof(int16_t)];
     }
     
-    // Формируем стандартный WAV-заголовок
     NSMutableData *wav = [NSMutableData data];
     int32_t dataSize = (int32_t)pcm.length;
     int32_t chunkSize = 36 + dataSize;
@@ -62,8 +59,8 @@
     [wav appendBytes:"WAVE" length:4];
     [wav appendBytes:"fmt " length:4];
     int32_t subchunk1Size = 16;
-    int16_t audioFormat = 1; // PCM
-    int16_t numChannels = 1; // Mono
+    int16_t audioFormat = 1;
+    int16_t numChannels = 1;
     int32_t sRate = sampleRate;
     int32_t byteRate = sampleRate * sizeof(int16_t);
     int16_t blockAlign = sizeof(int16_t);

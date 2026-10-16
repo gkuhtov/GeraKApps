@@ -6,9 +6,8 @@
 @end
 
 @implementation TargetTapButton
-// Увеличенная невидимая зона тапа 44x44 pt для комфортного нажатия
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
-    CGRect expanded = CGRectInset(self.bounds, -15, -15);
+    CGRect expanded = CGRectInset(self.bounds, -18, -18);
     return CGRectContainsPoint(expanded, point);
 }
 @end
@@ -131,51 +130,76 @@
     
     NSMutableSet *activeIDs = [NSMutableSet set];
     
-    for (SpectraRadarNode *node in nodes) {
+    // Сортируем узлы по углу для аккуратного разведения меток
+    NSArray<SpectraRadarNode *> *sortedNodes = [nodes sortedArrayUsingComparator:^NSComparisonResult(SpectraRadarNode *n1, SpectraRadarNode *n2) {
+        if (n1.angleRadians < n2.angleRadians) return NSOrderedAscending;
+        if (n1.angleRadians > n2.angleRadians) return NSOrderedDescending;
+        return NSOrderedSame;
+    }];
+    
+    CGFloat lastCalculatedY = -999.0;
+    
+    for (SpectraRadarNode *node in sortedNodes) {
         [activeIDs addObject:node.identifier];
         TargetTapButton *btn = _nodeButtons[node.identifier];
         
         if (!btn) {
             btn = [TargetTapButton buttonWithType:UIButtonTypeCustom];
-            btn.frame = CGRectMake(0, 0, 115, 20);
+            btn.frame = CGRectMake(0, 0, 110, 18);
             [btn addTarget:self action:@selector(nodeTapped:) forControlEvents:UIControlEventTouchUpInside];
             
-            // Круглешок строго в начале кнопки (x: 0..8)
-            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 6, kTargetDotSize, kTargetDotSize)];
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 5, kTargetDotSize, kTargetDotSize)];
             dot.tag = 101;
             dot.userInteractionEnabled = NO;
             dot.backgroundColor = _themeColor;
             dot.layer.cornerRadius = kTargetDotSize / 2.0;
             [btn addSubview:dot];
             
-            // Текст правее кругляшка
-            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 5, 0, 100, 20)];
+            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 4, 0, 95, 18)];
             label.tag = 102;
             label.userInteractionEnabled = NO;
-            label.font = [UIFont fontWithName:@"Courier-Bold" size:10];
+            label.font = [UIFont fontWithName:@"Courier-Bold" size:9];
             label.textColor = _themeColor;
             [btn addSubview:label];
             
-            btn.alpha = 0.45;
+            btn.alpha = 0.50;
             [_nodesContainer addSubview:btn];
             _nodeButtons[node.identifier] = btn;
         }
         
         UILabel *label = [btn viewWithTag:102];
-        NSString *shortName = (node.displayName && node.displayName.length > 9) ? [node.displayName substringToIndex:9] : (node.displayName ?: @"NODE");
+        NSString *shortName = (node.displayName && node.displayName.length > 8) ? [node.displayName substringToIndex:8] : (node.displayName ?: @"NODE");
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
         CGFloat radius = node.normalizedDistance * maxRadius;
         CGFloat targetDotX = center.x + sin(node.angleRadians) * radius;
         CGFloat targetDotY = center.y - cos(node.angleRadians) * radius;
         
-        // Центрируем кругляшок кнопки ровно по координатам цели
-        [UIView animateWithDuration:0.25 animations:^{
-            btn.center = CGPointMake(targetDotX + (btn.bounds.size.width / 2.0) - (kTargetDotSize / 2.0), targetDotY);
-            if ([node.identifier isEqualToString:self->_selectedNodeID]) {
-                self->_lockReticle.center = CGPointMake(targetDotX, targetDotY);
-            }
-        }];
+        // Разводим близкие по вертикали метки на 14 pt, чтобы не накладывались
+        CGFloat adjustedY = targetDotY;
+        if (fabs(targetDotY - lastCalculatedY) < 14.0 && targetDotX > center.x - 40) {
+            adjustedY += (targetDotY >= lastCalculatedY) ? 12.0 : -12.0;
+        }
+        lastCalculatedY = adjustedY;
+        
+        // Если точка в правой половине — текст справа, если в левой — текст аккуратно слева
+        BOOL isRightHalf = (targetDotX >= center.x);
+        UIView *dot = [btn viewWithTag:101];
+        if (isRightHalf) {
+            dot.frame = CGRectMake(0, 5, kTargetDotSize, kTargetDotSize);
+            label.frame = CGRectMake(kTargetDotSize + 4, 0, 95, 18);
+            label.textAlignment = NSTextAlignmentLeft;
+            btn.center = CGPointMake(targetDotX + (btn.bounds.size.width / 2.0) - (kTargetDotSize / 2.0), adjustedY);
+        } else {
+            dot.frame = CGRectMake(btn.bounds.size.width - kTargetDotSize, 5, kTargetDotSize, kTargetDotSize);
+            label.frame = CGRectMake(0, 0, btn.bounds.size.width - kTargetDotSize - 4, 18);
+            label.textAlignment = NSTextAlignmentRight;
+            btn.center = CGPointMake(targetDotX - (btn.bounds.size.width / 2.0) + (kTargetDotSize / 2.0), adjustedY);
+        }
+        
+        if ([node.identifier isEqualToString:self->_selectedNodeID]) {
+            self->_lockReticle.center = CGPointMake(targetDotX, targetDotY);
+        }
     }
     
     NSArray *allKeys = [_nodeButtons allKeys];
@@ -200,7 +224,6 @@
                     UIView *dot = [sender viewWithTag:101];
                     CGPoint dotCenterInContainer = [sender convertPoint:dot.center toView:_nodesContainer];
                     
-                    // Центрируем прицел строго на круглешок
                     _lockReticle.center = dotCenterInContainer;
                     _lockReticle.hidden = NO;
                     
@@ -240,7 +263,7 @@
                     btn.alpha = 1.0;
                     [[HapticManager shared] triggerRadarPing];
                     [UIView animateWithDuration:kRadarSweepDuration * 0.85 animations:^{
-                        btn.alpha = 0.40;
+                        btn.alpha = 0.50;
                     }];
                 }
             }

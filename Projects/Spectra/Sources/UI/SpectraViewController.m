@@ -65,34 +65,33 @@
     _emfLabel.text = @"0.0 µT";
     [_radarLens addSubview:_emfLabel];
     
-    _nodesCountLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, kRadarHeight - 36, 180, 24)];
+    _nodesCountLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, kRadarHeight - 36, 170, 24)];
     _nodesCountLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
     _nodesCountLabel.textColor = initialColor;
     _nodesCountLabel.text = @"NODES: 0 SCANNING...";
     [_radarLens addSubview:_nodesCountLabel];
     
+    // Кнопка звука достаточной ширины (68 pt), чтобы надпись никогда не сжималась
     _muteButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _muteButton.frame = CGRectMake(width - 92, kRadarHeight - 44, 46, 34);
+    _muteButton.frame = CGRectMake(width - 108, kRadarHeight - 44, 68, 34);
     [_muteButton setTitle:@"[MUTE]" forState:UIControlStateNormal];
     [_muteButton setTitleColor:initialColor forState:UIControlStateNormal];
-    _muteButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
+    _muteButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
     [_muteButton addTarget:self action:@selector(toggleMute) forControlEvents:UIControlEventTouchUpInside];
     [_radarLens addSubview:_muteButton];
     
     _helpButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _helpButton.frame = CGRectMake(width - 44, kRadarHeight - 44, 34, 34);
+    _helpButton.frame = CGRectMake(width - 38, kRadarHeight - 44, 30, 34);
     [_helpButton setTitle:@"[?]" forState:UIControlStateNormal];
     [_helpButton setTitleColor:initialColor forState:UIControlStateNormal];
     _helpButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:14];
     [_helpButton addTarget:self action:@selector(openHelpPopup) forControlEvents:UIControlEventTouchUpInside];
     [_radarLens addSubview:_helpButton];
     
-    // Осциллограф под линзой радара
     CGFloat oscY = CGRectGetMaxY(_radarLens.frame) + 10;
     _oscilloscope = [[EmfOscilloscopeView alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, oscY, width, 55)];
     [self.view addSubview:_oscilloscope];
     
-    // Выдвижная карточка узла (поверх осциллографа при клике)
     _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, oscY - 4, width, 115)];
     _detailsCard.delegate = self;
     _detailsCard.alpha = 0.0;
@@ -111,7 +110,14 @@
     audio.isMuted = !audio.isMuted;
     [[HapticManager shared] triggerSelectionTick];
     
-    [_muteButton setTitle:audio.isMuted ? @"[MUTE]" : @"[АКУСТ]" forState:UIControlStateNormal];
+    // Если звук активен -> кнопка предлагает [MUTE], если заглушен -> [UNMUTE]
+    if (audio.isMuted) {
+        [_muteButton setTitle:@"[UNMUTE]" forState:UIControlStateNormal];
+        _muteButton.alpha = 0.55;
+    } else {
+        [_muteButton setTitle:@"[MUTE]" forState:UIControlStateNormal];
+        _muteButton.alpha = 1.0;
+    }
 }
 
 - (void)frequencyModeChanged:(UISegmentedControl *)sender {
@@ -180,7 +186,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• ОСЦИЛЛОГРАФ: Живой график ЭМ-фона в реальном времени.\n• [MUTE / АКУСТ]: Включение акустического пульса (щелчки синхронизированы с датчиком индукции).\n• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла."
+                                                                   message:@"• КНОПКА [MUTE]: Глушит процедурные щелчки спектрометра.\n• ОСЦИЛЛОГРАФ: Динамическая кривая колебаний ЭМ-поля.\n• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];
