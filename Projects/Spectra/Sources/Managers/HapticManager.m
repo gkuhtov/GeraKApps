@@ -34,6 +34,10 @@
     [_lightGen impactOccurredWithIntensity:0.65];
 }
 
+- (void)triggerTargetLock {
+    [_rigidGen impactOccurredWithIntensity:0.9];
+}
+
 - (void)triggerWarningPulse {
     [_mediumGen impactOccurred];
 }

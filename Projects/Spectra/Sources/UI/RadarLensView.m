@@ -6,10 +6,11 @@
     CAShapeLayer *_gridLayer;
     CAShapeLayer *_sweepLayer;
     UIView *_nodesContainer;
-    NSMutableDictionary<NSString *, UIView *> *_nodeViews;
+    NSMutableDictionary<NSString *, UIButton *> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
     CADisplayLink *_sweepTracker;
     NSDate *_sweepStartDate;
+    UIView *_lockReticle;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -19,7 +20,7 @@
         self.layer.borderWidth = kRadarBorderWidth;
         self.clipsToBounds = YES;
         
-        _nodeViews = [NSMutableDictionary dictionary];
+        _nodeButtons = [NSMutableDictionary dictionary];
         
         _gridLayer = [CAShapeLayer layer];
         _gridLayer.fillColor = [UIColor clearColor].CGColor;
@@ -27,12 +28,17 @@
         [self.layer addSublayer:_gridLayer];
         
         _nodesContainer = [[UIView alloc] initWithFrame:self.bounds];
-        _nodesContainer.userInteractionEnabled = NO;
+        _nodesContainer.userInteractionEnabled = YES;
         [self addSubview:_nodesContainer];
         
         _sweepLayer = [CAShapeLayer layer];
         _sweepLayer.frame = self.bounds;
         [self.layer addSublayer:_sweepLayer];
+        
+        _lockReticle = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 26, 26)];
+        _lockReticle.layer.borderWidth = 1.5;
+        _lockReticle.hidden = YES;
+        [_nodesContainer addSubview:_lockReticle];
         
         [self setThemeColor:SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)];
         [self drawRadarGrid];
@@ -70,10 +76,11 @@
     self.layer.borderColor = [themeColor colorWithAlphaComponent:0.85].CGColor;
     _gridLayer.strokeColor = [themeColor colorWithAlphaComponent:0.25].CGColor;
     _sweepLayer.strokeColor = themeColor.CGColor;
+    _lockReticle.layer.borderColor = themeColor.CGColor;
     
-    for (UIView *blip in _nodeViews.allValues) {
-        UIView *dot = [blip viewWithTag:101];
-        UILabel *lbl = [blip viewWithTag:102];
+    for (UIButton *btn in _nodeButtons.allValues) {
+        UIView *dot = [btn viewWithTag:101];
+        UILabel *lbl = [btn viewWithTag:102];
         dot.backgroundColor = themeColor;
         lbl.textColor = themeColor;
     }
@@ -103,51 +110,88 @@
     
     for (SpectraRadarNode *node in nodes) {
         [activeIDs addObject:node.identifier];
-        UIView *blipView = _nodeViews[node.identifier];
+        UIButton *btn = _nodeButtons[node.identifier];
         
-        if (!blipView) {
-            blipView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 110, 24)];
+        if (!btn) {
+            btn = [UIButton buttonWithType:UIButtonTypeCustom];
+            btn.frame = CGRectMake(0, 0, 120, 32);
+            [btn addTarget:self action:@selector(nodeTapped:) forControlEvents:UIControlEventTouchUpInside];
             
-            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(0, 8, kTargetDotSize, kTargetDotSize)];
+            UIView *dot = [[UIView alloc] initWithFrame:CGRectMake(4, 12, kTargetDotSize, kTargetDotSize)];
             dot.tag = 101;
+            dot.userInteractionEnabled = NO;
             dot.backgroundColor = _themeColor;
             dot.layer.cornerRadius = kTargetDotSize / 2.0;
-            [blipView addSubview:dot];
+            [btn addSubview:dot];
             
-            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 4, 2, 95, 20)];
+            UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(kTargetDotSize + 8, 6, 95, 20)];
             label.tag = 102;
+            label.userInteractionEnabled = NO;
             label.font = [UIFont fontWithName:@"Courier-Bold" size:10];
             label.textColor = _themeColor;
-            [blipView addSubview:label];
+            [btn addSubview:label];
             
-            blipView.alpha = 0.45;
-            [_nodesContainer addSubview:blipView];
-            _nodeViews[node.identifier] = blipView;
+            btn.alpha = 0.45;
+            [_nodesContainer addSubview:btn];
+            _nodeButtons[node.identifier] = btn;
         }
         
-        UILabel *label = [blipView viewWithTag:102];
+        UILabel *label = [btn viewWithTag:102];
         NSString *shortName = (node.displayName && node.displayName.length > 9) ? [node.displayName substringToIndex:9] : (node.displayName ?: @"NODE");
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
         CGFloat radius = node.normalizedDistance * maxRadius;
-        // Переводим азимут (0 наверху) в экранные координаты
         CGFloat x = center.x + sin(node.angleRadians) * radius;
         CGFloat y = center.y - cos(node.angleRadians) * radius;
         
         [UIView animateWithDuration:0.25 animations:^{
-            blipView.center = CGPointMake(x + 48, y);
+            btn.center = CGPointMake(x + 50, y);
+            if ([node.identifier isEqualToString:self->_selectedNodeID]) {
+                self->_lockReticle.center = CGPointMake(x + 8, y);
+            }
         }];
     }
     
-    // Удаляем пропавшие из эфира узлы
-    NSArray *allKeys = [_nodeViews allKeys];
+    NSArray *allKeys = [_nodeButtons allKeys];
     for (NSString *key in allKeys) {
         if (![activeIDs containsObject:key]) {
-            UIView *oldView = _nodeViews[key];
-            [oldView removeFromSuperview];
-            [_nodeViews removeObjectForKey:key];
+            UIButton *oldBtn = _nodeButtons[key];
+            [oldBtn removeFromSuperview];
+            [_nodeButtons removeObjectForKey:key];
+            if ([key isEqualToString:_selectedNodeID]) {
+                [self clearSelection];
+            }
         }
     }
+}
+
+- (void)nodeTapped:(UIButton *)sender {
+    for (NSString *key in _nodeButtons) {
+        if (_nodeButtons[key] == sender) {
+            _selectedNodeID = key;
+            for (SpectraRadarNode *node in _currentNodes) {
+                if ([node.identifier isEqualToString:key]) {
+                    UIView *dot = [sender viewWithTag:101];
+                    _lockReticle.center = [sender convertPoint:dot.center toView:_nodesContainer];
+                    _lockReticle.hidden = NO;
+                    
+                    _lockReticle.transform = CGAffineTransformMakeScale(1.8, 1.8);
+                    [UIView animateWithDuration:0.2 animations:^{
+                        self->_lockReticle.transform = CGAffineTransformIdentity;
+                    }];
+                    
+                    [[HapticManager shared] triggerTargetLock];
+                    [self.delegate radarDidSelectNode:node];
+                    return;
+                }
+            }
+        }
+    }
+}
+
+- (void)clearSelection {
+    _selectedNodeID = nil;
+    _lockReticle.hidden = YES;
 }
 
 - (void)checkSweepCollisions {
@@ -162,12 +206,12 @@
         if (fabs(currentSweepAngle - node.angleRadians) < 0.12) {
             if (!node.lastPingedBySweep || [now timeIntervalSinceDate:node.lastPingedBySweep] > (kRadarSweepDuration * 0.8)) {
                 node.lastPingedBySweep = now;
-                UIView *blipView = _nodeViews[node.identifier];
-                if (blipView) {
-                    blipView.alpha = 1.0;
+                UIButton *btn = _nodeButtons[node.identifier];
+                if (btn) {
+                    btn.alpha = 1.0;
                     [[HapticManager shared] triggerRadarPing];
                     [UIView animateWithDuration:kRadarSweepDuration * 0.85 animations:^{
-                        blipView.alpha = 0.35;
+                        btn.alpha = 0.40;
                     }];
                 }
             }

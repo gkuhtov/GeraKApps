@@ -4,8 +4,9 @@
 #import "SensorManager.h"
 #import "BluetoothManager.h"
 #import "HapticManager.h"
+#import "TargetDetailsCard.h"
 
-@interface SpectraViewController () <SensorManagerDelegate, BluetoothManagerDelegate> {
+@interface SpectraViewController () <SensorManagerDelegate, BluetoothManagerDelegate, RadarLensViewDelegate, TargetDetailsCardDelegate> {
     RadarLensView *_radarLens;
     UILabel *_azimuthLabel;
     UILabel *_emfLabel;
@@ -15,6 +16,7 @@
     SensorManager *_sensorManager;
     BluetoothManager *_bluetoothManager;
     SpectraFrequencyMode _currentMode;
+    TargetDetailsCard *_detailsCard;
 }
 @end
 
@@ -39,6 +41,7 @@
 - (void)setupInterface {
     CGFloat width = self.view.bounds.size.width - (kRadarHorizontalMargin * 2);
     _radarLens = [[RadarLensView alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, kRadarTopOffset, width, kRadarHeight)];
+    _radarLens.delegate = self;
     [self.view addSubview:_radarLens];
     [_radarLens startSweepAnimation];
     
@@ -71,6 +74,13 @@
     [_helpButton addTarget:self action:@selector(openHelpPopup) forControlEvents:UIControlEventTouchUpInside];
     [_radarLens addSubview:_helpButton];
     
+    // Карточка захваченной цели
+    _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, CGRectGetMaxY(_radarLens.frame) + 12, width, 105)];
+    _detailsCard.delegate = self;
+    _detailsCard.alpha = 0.0;
+    _detailsCard.hidden = YES;
+    [self.view addSubview:_detailsCard];
+    
     _freqControl = [[UISegmentedControl alloc] initWithItems:@[@"ТЕХНО", @"ЭЛЕКТРА", @"СПЕКТРА"]];
     _freqControl.frame = CGRectMake(kRadarHorizontalMargin, self.view.bounds.size.height - 110, width, 42);
     _freqControl.selectedSegmentIndex = 0;
@@ -84,10 +94,32 @@
     
     UIColor *newColor = SpectraPrimaryColorForMode(_currentMode);
     _radarLens.themeColor = newColor;
+    _detailsCard.themeColor = newColor;
     _azimuthLabel.textColor = newColor;
     _emfLabel.textColor = newColor;
     _nodesCountLabel.textColor = newColor;
     [_helpButton setTitleColor:newColor forState:UIControlStateNormal];
+}
+
+#pragma mark - RadarLensViewDelegate
+
+- (void)radarDidSelectNode:(SpectraRadarNode *)node {
+    [_detailsCard configureWithNode:node];
+    _detailsCard.hidden = NO;
+    [UIView animateWithDuration:0.25 animations:^{
+        self->_detailsCard.alpha = 1.0;
+    }];
+}
+
+#pragma mark - TargetDetailsCardDelegate
+
+- (void)targetDetailsDidRequestDismiss {
+    [UIView animateWithDuration:0.2 animations:^{
+        self->_detailsCard.alpha = 0.0;
+    } completion:^(BOOL finished) {
+        self->_detailsCard.hidden = YES;
+        [self->_radarLens clearSelection];
+    }];
 }
 
 #pragma mark - Делегаты датчиков и Bluetooth
@@ -116,7 +148,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• NODES: Активные BLE-узлы вокруг устройства. Чем ближе точка к центру, тем выше мощность сигнала (dBm).\n• При прохождении сканирующего луча через цель срабатывает импульс Taptic Engine."
+                                                                   message:@"• НАЖАТИЕ НА ТОЧКУ: Захват узла в прицел и открытие карточки телеметрии.\n• RSSI / ДИСТ: Расчет удаленности источника сигнала.\n• КНОПКА [КОПИР]: Быстрое сохранение UUID в буфер."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];

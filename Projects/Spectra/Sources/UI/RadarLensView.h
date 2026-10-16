@@ -1,5 +1,4 @@
 #import <UIKit/UIKit.h>
-#import <QuartzCore/QuartzCore.h>
 #import "BluetoothManager.h"
 
 @protocol RadarLensViewDelegate <NSObject>

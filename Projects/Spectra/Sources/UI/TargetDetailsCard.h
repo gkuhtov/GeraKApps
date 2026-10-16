@@ -1,5 +1,4 @@
 #import <UIKit/UIKit.h>
-#import <CoreGraphics/CoreGraphics.h>
 #import "BluetoothManager.h"
 
 @protocol TargetDetailsCardDelegate <NSObject>
