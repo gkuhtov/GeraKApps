@@ -42,8 +42,17 @@
         
         [self setThemeColor:SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)];
         [self drawRadarGrid];
+        
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(startSweepAnimation)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)drawRadarGrid {
@@ -88,6 +97,8 @@
 
 - (void)startSweepAnimation {
     _sweepStartDate = [NSDate date];
+    [_sweepLayer removeAnimationForKey:@"radarSweep"];
+    
     CABasicAnimation *rotation = [CABasicAnimation animationWithKeyPath:@"transform.rotation.z"];
     rotation.toValue = @(M_PI * 2.0);
     rotation.duration = kRadarSweepDuration;

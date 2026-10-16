@@ -5,6 +5,7 @@
 @implementation AudioPulseManager {
     NSTimer *_pulseTimer;
     double _currentEmf;
+    SystemSoundID _tickSoundID;
 }
 
 + (instancetype)shared {
@@ -18,8 +19,14 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        _isMuted = YES; // По умолчанию тихий режим
+        _isMuted = YES;
         _currentEmf = 0.0;
+        
+        // Разрешаем воспроизведение аудио поверх бесшумного режима
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                         withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                                               error:nil];
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
     }
     return self;
 }
@@ -31,12 +38,12 @@
         return;
     }
     
-    // Рассчитываем интервал щелчков: от 1.2 сек (фон) до 0.08 сек (высокое поле)
-    double clamped = MAX(20.0, MIN(120.0, microTeslas));
-    double factor = (clamped - 20.0) / 100.0;
-    NSTimeInterval interval = 1.2 - (factor * 1.12);
+    // Рассчитываем интервал от 0.9 сек (фон) до 0.09 сек (сильное поле)
+    double clamped = MAX(20.0, MIN(300.0, microTeslas));
+    double factor = (clamped - 20.0) / 280.0;
+    NSTimeInterval interval = 0.9 - (factor * 0.81);
     
-    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.15) {
+    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.12) {
         [_pulseTimer invalidate];
         _pulseTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                        target:self
@@ -48,8 +55,8 @@
 
 - (void)playTick {
     if (_isMuted) return;
-    // Аппаратный короткий системный клик
-    AudioServicesPlaySystemSound(1104);
+    // Короткий четкий тактический щелчок клавиатуры/таймера (1104 / 1057)
+    AudioServicesPlayAlertSound(1104);
 }
 
 - (void)stop {

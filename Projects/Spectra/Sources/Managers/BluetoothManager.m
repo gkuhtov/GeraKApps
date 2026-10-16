@@ -13,20 +13,39 @@
 - (instancetype)init {
     if (self = [super init]) {
         _nodesMap = [NSMutableDictionary dictionary];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleAppDidBecomeActive)
+                                                     name:UIApplicationDidBecomeActiveNotification
+                                                   object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)handleAppDidBecomeActive {
+    // Обновляем время жизни уже найденных узлов, чтобы их не сдуло таймером
+    NSDate *now = [NSDate date];
+    for (SpectraRadarNode *node in _nodesMap.allValues) {
+        node.lastSeen = now;
+    }
+    [self startScanning];
+    [self notifyDelegate];
 }
 
 - (void)startScanning {
     if (!_centralManager) {
         _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:dispatch_get_main_queue()];
     } else if (_centralManager.state == CBManagerStatePoweredOn) {
+        [_centralManager stopScan];
         [_centralManager scanForPeripheralsWithServices:nil
                                                 options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @YES}];
     }
     
-    if (!_cleanupTimer) {
-        _cleanupTimer = [NSTimer scheduledTimerWithTimeInterval:1.0
+    if (!_cleanupTimer || !_cleanupTimer.isValid) {
+        _cleanupTimer = [NSTimer scheduledTimerWithTimeInterval:1.5
                                                          target:self
                                                        selector:@selector(purgeStaleNodes)
                                                        userInfo:nil
@@ -35,7 +54,7 @@
 }
 
 - (void)stopScanning {
-    if (_centralManager.state == CBManagerStatePoweredOn) {
+    if (_centralManager && _centralManager.state == CBManagerStatePoweredOn) {
         [_centralManager stopScan];
     }
     [_cleanupTimer invalidate];
@@ -44,12 +63,10 @@
 
 - (void)centralManagerDidUpdateState:(CBCentralManager *)central {
     if (central.state == CBManagerStatePoweredOn) {
-        [_centralManager scanForPeripheralsWithServices:nil
-                                                options:@{CBCentralManagerScanOptionAllowDuplicatesKey: @YES}];
+        [self startScanning];
     }
 }
 
-// Умный анализатор типа устройства по эфирным пакетам
 - (NSString *)identifyDeviceWithPeripheral:(CBPeripheral *)peripheral
                                    advData:(NSDictionary<NSString *,id> *)advData
                                   category:(NSString **)outCategory {
@@ -61,13 +78,12 @@
     NSString *detectedName = nil;
     NSString *detectedCategory = @"НЕИЗВЕСТНО";
 
-    // 1. Анализируем Manufacturer Data (Company ID)
     if (mfgData.length >= 2) {
         const uint8_t *bytes = (const uint8_t *)mfgData.bytes;
         uint16_t companyID = bytes[0] | (bytes[1] << 8);
         
         switch (companyID) {
-            case 0x004C: { // Apple Inc.
+            case 0x004C: {
                 detectedCategory = @"APPLE ЭКОСИСТЕМА";
                 if (mfgData.length >= 3) {
                     uint8_t appleType = bytes[2];
@@ -88,35 +104,34 @@
                 }
                 break;
             }
-            case 0x0075: // Samsung Electronics
+            case 0x0075:
                 detectedName = @"SAMSUNG-NODE";
                 detectedCategory = @"GALAXY DEVICE";
                 break;
-            case 0x038F: // Xiaomi Inc.
+            case 0x038F:
                 detectedName = @"XIAOMI-IOT";
                 detectedCategory = @"SMART HOME";
                 break;
-            case 0x0157: // Huami (Amazfit)
+            case 0x0157:
                 detectedName = @"AMAZFIT-WATCH";
                 detectedCategory = @"НОСИМОЕ УСТРОЙСТВО";
                 break;
-            case 0x0006: // Microsoft
+            case 0x0006:
                 detectedName = @"MS-PC/CONSOLE";
                 detectedCategory = @"ВЫЧИСЛИТЕЛЬ";
                 break;
-            case 0x000A: // Qualcomm
-            case 0x00E0: // Google
+            case 0x000A:
+            case 0x00E0:
                 detectedName = (companyID == 0x00E0) ? @"GOOGLE-DEVICE" : @"BT-AUDIO";
                 detectedCategory = @"РАДИОУЗЕЛ";
                 break;
-            case 0x0059: // Nordic Semiconductor (IoT маяки)
+            case 0x0059:
                 detectedName = @"NORDIC-BEACON";
                 detectedCategory = @"ТЕЛЕМЕТРИЯ / ДАТЧИК";
                 break;
         }
     }
     
-    // 2. Анализируем стандартные GATT-сервисы
     if (!detectedName && services.count > 0) {
         for (CBUUID *uuid in services) {
             NSString *uuidStr = [uuid.UUIDString uppercaseString];
@@ -140,7 +155,6 @@
         }
     }
     
-    // 3. Если есть открытое имя, приоритетно используем его
     if (localName.length > 0) {
         detectedName = [localName uppercaseString];
         if ([detectedCategory isEqualToString:@"НЕИЗВЕСТНО"]) {
@@ -148,7 +162,6 @@
         }
     }
     
-    // 4. Если ничего не подошло — короткий ID
     if (!detectedName) {
         NSString *uuid = peripheral.identifier.UUIDString;
         NSString *prefix = uuid.length >= 4 ? [uuid substringToIndex:4] : uuid;
@@ -190,7 +203,6 @@
     
     NSString *category = nil;
     NSString *name = [self identifyDeviceWithPeripheral:peripheral advData:advertisementData category:&category];
-    
     node.displayName = name;
     node.deviceCategory = category;
     
@@ -208,7 +220,8 @@
     
     for (NSString *key in _nodesMap) {
         SpectraRadarNode *node = _nodesMap[key];
-        if (node.lastSeen && [now timeIntervalSinceDate:node.lastSeen] > kBleNodeStaleTimeout) {
+        // Увеличили время жизни до 18 секунд, чтобы при временной паузе узлы не слетали
+        if (node.lastSeen && [now timeIntervalSinceDate:node.lastSeen] > 18.0) {
             [keysToRemove addObject:key];
         }
     }

@@ -5,6 +5,7 @@
     CAShapeLayer *_waveformLayer;
     NSMutableArray<NSNumber *> *_history;
     NSInteger _maxPoints;
+    double _runningAverage;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -14,10 +15,11 @@
         self.layer.borderWidth = 1.2;
         self.clipsToBounds = YES;
         
+        _runningAverage = 50.0;
         _maxPoints = (NSInteger)(frame.size.width / 4.0);
         _history = [NSMutableArray arrayWithCapacity:_maxPoints];
         for (NSInteger i = 0; i < _maxPoints; i++) {
-            [_history addObject:@(0.0)];
+            [_history addObject:@(50.0)];
         }
         
         _waveformLayer = [CAShapeLayer layer];
@@ -39,6 +41,7 @@
 - (void)pushValue:(double)value {
     [_history removeObjectAtIndex:0];
     [_history addObject:@(value)];
+    _runningAverage = (_runningAverage * 0.95) + (value * 0.05);
     [self renderWaveform];
 }
 
@@ -47,12 +50,14 @@
     CGFloat midY = self.bounds.size.height / 2.0;
     CGFloat stepX = self.bounds.size.width / (CGFloat)(_maxPoints - 1);
     
+    // Адаптивное отклонение вокруг скользящего среднего
     for (NSInteger i = 0; i < _history.count; i++) {
         double val = [_history[i] doubleValue];
-        // Нормализация волны вокруг центра
-        double deviation = (val - 45.0);
-        CGFloat y = midY - (CGFloat)(deviation * 0.85);
-        y = MAX(4.0, MIN(self.bounds.size.height - 4.0, y));
+        double diff = val - _runningAverage;
+        
+        // Масштабируем колебания в пределах высоты рамки
+        CGFloat y = midY - (CGFloat)(diff * 0.7);
+        y = MAX(5.0, MIN(self.bounds.size.height - 5.0, y));
         
         CGPoint pt = CGPointMake(i * stepX, y);
         if (i == 0) {
