@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'Projects/Spectra/**'
-      - '.github/workflows/build-spectra.yml'
   workflow_dispatch:
 
 jobs:

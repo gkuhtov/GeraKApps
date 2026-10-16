@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'Projects/GeraKLab/**'
-      - '.github/workflows/build-geraklab.yml'
   workflow_dispatch:
 
 jobs:
