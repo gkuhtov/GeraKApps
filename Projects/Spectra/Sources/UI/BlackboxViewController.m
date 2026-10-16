@@ -18,12 +18,13 @@
     [super viewDidLoad];
     self.view.backgroundColor = SpectraBackgroundColor();
     
+    UIColor *effectiveColor = self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno);
     CGFloat width = self.view.bounds.size.width;
     CGFloat height = self.view.bounds.size.height;
     
     _headerLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 22, width - 120, 24)];
     _headerLabel.font = [UIFont fontWithName:@"Courier-Bold" size:15];
-    _headerLabel.textColor = self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno);
+    _headerLabel.textColor = effectiveColor;
     _headerLabel.text = @"БОРТОВОЙ ЖУРНАЛ ЭФИРА";
     [self.view addSubview:_headerLabel];
     
@@ -31,7 +32,7 @@
     _closeButton.frame = CGRectMake(width - 94, 18, 78, 30);
     [_closeButton setTitle:@"ЗАКРЫТЬ" forState:UIControlStateNormal];
     _closeButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
-    [_closeButton setTitleColor:self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno) forState:UIControlStateNormal];
+    [_closeButton setTitleColor:effectiveColor forState:UIControlStateNormal];
     [_closeButton addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_closeButton];
     
@@ -40,23 +41,23 @@
     _tableView.backgroundColor = [UIColor colorWithRed:0.02 green:0.04 blue:0.03 alpha:1.0];
     _tableView.layer.cornerRadius = 10.0;
     _tableView.layer.borderWidth = 1.2;
-    _tableView.layer.borderColor = [(self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)) colorWithAlphaComponent:0.6].CGColor;
+    _tableView.layer.borderColor = [effectiveColor colorWithAlphaComponent:0.6].CGColor;
     _tableView.dataSource = self;
     _tableView.delegate = self;
     _tableView.rowHeight = 44.0;
-    _tableView.separatorColor = [(self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)) colorWithAlphaComponent:0.25];
+    _tableView.separatorColor = [effectiveColor colorWithAlphaComponent:0.25];
     [self.view addSubview:_tableView];
     
     CGFloat btnY = CGRectGetMaxY(_tableView.frame) + 12;
     _exportButton = [UIButton buttonWithType:UIButtonTypeSystem];
     _exportButton.frame = CGRectMake(14, btnY, 134, 34);
-    _exportButton.backgroundColor = [[self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)] colorWithAlphaComponent:0.12];
+    _exportButton.backgroundColor = [effectiveColor colorWithAlphaComponent:0.12];
     _exportButton.layer.cornerRadius = 6.0;
     _exportButton.layer.borderWidth = 1.0;
-    _exportButton.layer.borderColor = (self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)).CGColor;
+    _exportButton.layer.borderColor = effectiveColor.CGColor;
     [_exportButton setTitle:@"[ЭКСПОРТ .TXT]" forState:UIControlStateNormal];
     _exportButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
-    [_exportButton setTitleColor:self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno) forState:UIControlStateNormal];
+    [_exportButton setTitleColor:effectiveColor forState:UIControlStateNormal];
     [_exportButton addTarget:self action:@selector(exportTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_exportButton];
     

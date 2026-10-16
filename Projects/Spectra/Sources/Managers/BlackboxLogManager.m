@@ -83,7 +83,6 @@
     double delta = microTeslas - _runningEmfAverage;
     _runningEmfAverage = (_runningEmfAverage * 0.98) + (microTeslas * 0.02);
     
-    // Логируем только резкий скачок (> 40 µT над фоновым уровнем)
     if (delta > 40.0) {
         NSDate *now = [NSDate date];
         if (_lastEmfAnomalyTime && [now timeIntervalSinceDate:_lastEmfAnomalyTime] < 6.0) {

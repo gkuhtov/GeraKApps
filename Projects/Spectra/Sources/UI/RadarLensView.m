@@ -67,7 +67,6 @@
         _lockReticle.hidden = YES;
         [_nodesContainer addSubview:_lockReticle];
         
-        // Слой CRT-полос развертки (Scanlines)
         _scanlinesLayer = [CAShapeLayer layer];
         _scanlinesLayer.fillColor = [UIColor clearColor].CGColor;
         _scanlinesLayer.lineWidth = 1.0;
@@ -107,7 +106,6 @@
     [path addLineToPoint:CGPointMake(center.x, center.y + maxRadius)];
     _gridLayer.path = path.CGPath;
     
-    // Центральное перекрестие прицела (reticle crosshair)
     UIBezierPath *reticle = [UIBezierPath bezierPath];
     CGFloat rSize = 10.0;
     [reticle moveToPoint:CGPointMake(center.x - rSize, center.y)];

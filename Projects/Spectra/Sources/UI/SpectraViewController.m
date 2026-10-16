@@ -196,7 +196,6 @@
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
     [_oscilloscope pushValue:microTeslas];
     
-    // Умный фильтр дельты всплесков (без спама стационарного фона)
     [[BlackboxLogManager shared] processEmfValue:microTeslas azimuth:_currentHeadingDeg];
     
     if (!_radarLens.isTrackingMode) {
