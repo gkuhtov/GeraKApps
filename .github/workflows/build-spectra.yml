@@ -38,7 +38,8 @@ jobs:
         working-directory: Projects/Spectra
         run: |
           mkdir -p Payload
-          cp -r build/Build/Products/Release-iphoneos/Spectra.app Payload/
+          APP_PATH=$(find build -name "Spectra.app" -type d | head -n 1)
+          cp -r "$APP_PATH" Payload/
           zip -r Spectra.ipa Payload/
 
       - name: Выгрузка готового IPA
