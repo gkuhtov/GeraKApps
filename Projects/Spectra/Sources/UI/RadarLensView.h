@@ -13,5 +13,6 @@
 @property (nonatomic, assign) BOOL isTrackingMode;
 - (void)startSweepAnimation;
 - (void)updateWithNodes:(NSArray<SpectraRadarNode *> *)nodes;
+- (void)updateCompassHeading:(double)headingDegrees;
 - (void)clearSelection;
 @end

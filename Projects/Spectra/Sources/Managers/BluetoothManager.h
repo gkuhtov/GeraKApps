@@ -11,6 +11,8 @@
 @property (nonatomic, assign) CGFloat normalizedDistance;
 @property (nonatomic, strong) NSDate *lastSeen;
 @property (nonatomic, strong) NSDate *lastPingedBySweep;
+@property (nonatomic, assign) NSInteger peakRssi;
+@property (nonatomic, assign) CGFloat peakHeadingAngle;
 @end
 
 @protocol BluetoothManagerDelegate <NSObject>
@@ -21,4 +23,5 @@
 @property (nonatomic, weak) id<BluetoothManagerDelegate> delegate;
 - (void)startScanning;
 - (void)stopScanning;
+- (void)updateCurrentDeviceAzimuth:(double)azimuthDegrees;
 @end

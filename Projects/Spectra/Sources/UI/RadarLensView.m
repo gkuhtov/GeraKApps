@@ -16,12 +16,14 @@
     CAShapeLayer *_gridLayer;
     CAShapeLayer *_sweepLayer;
     CAShapeLayer *_vectorLayer;
+    CAShapeLayer *_compassArrowLayer;
     UIView *_nodesContainer;
     NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
     CADisplayLink *_sweepTracker;
     NSDate *_sweepStartDate;
     UIView *_lockReticle;
+    double _currentHeadingRadians;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -31,6 +33,7 @@
         self.layer.borderWidth = kRadarBorderWidth;
         self.clipsToBounds = YES;
         
+        _currentHeadingRadians = 0.0;
         _nodeButtons = [NSMutableDictionary dictionary];
         
         _gridLayer = [CAShapeLayer layer];
@@ -43,6 +46,11 @@
         _vectorLayer.lineDashPattern = @[@4, @2];
         _vectorLayer.fillColor = [UIColor clearColor].CGColor;
         [self.layer addSublayer:_vectorLayer];
+        
+        _compassArrowLayer = [CAShapeLayer layer];
+        _compassArrowLayer.lineWidth = 2.0;
+        _compassArrowLayer.fillColor = [UIColor clearColor].CGColor;
+        [self.layer addSublayer:_compassArrowLayer];
         
         _nodesContainer = [[UIView alloc] initWithFrame:self.bounds];
         _nodesContainer.userInteractionEnabled = YES;
@@ -104,6 +112,7 @@
     _gridLayer.strokeColor = [themeColor colorWithAlphaComponent:0.25].CGColor;
     _sweepLayer.strokeColor = themeColor.CGColor;
     _vectorLayer.strokeColor = [UIColor yellowColor].CGColor;
+    _compassArrowLayer.strokeColor = themeColor.CGColor;
     _lockReticle.layer.borderColor = themeColor.CGColor;
     
     for (TargetTapButton *btn in _nodeButtons.allValues) {
@@ -131,6 +140,15 @@
     }
 }
 
+- (void)updateCompassHeading:(double)headingDegrees {
+    _currentHeadingRadians = (headingDegrees * M_PI) / 180.0;
+    
+    // Вращаем линзу целей и сетку относительно севера
+    if (_currentNodes.count > 0) {
+        [self updateWithNodes:_currentNodes];
+    }
+}
+
 - (void)updateWithNodes:(NSArray<SpectraRadarNode *> *)nodes {
     _currentNodes = nodes;
     CGPoint center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
@@ -140,15 +158,7 @@
     CGPoint trackedPoint = CGPointZero;
     BOOL hasTrackedPoint = NO;
     
-    NSArray<SpectraRadarNode *> *sortedNodes = [nodes sortedArrayUsingComparator:^NSComparisonResult(SpectraRadarNode *n1, SpectraRadarNode *n2) {
-        if (n1.angleRadians < n2.angleRadians) return NSOrderedAscending;
-        if (n1.angleRadians > n2.angleRadians) return NSOrderedDescending;
-        return NSOrderedSame;
-    }];
-    
-    CGFloat lastCalculatedY = -999.0;
-    
-    for (SpectraRadarNode *node in sortedNodes) {
+    for (SpectraRadarNode *node in nodes) {
         [activeIDs addObject:node.identifier];
         TargetTapButton *btn = _nodeButtons[node.identifier];
         
@@ -180,15 +190,12 @@
         NSString *shortName = (node.displayName && node.displayName.length > 8) ? [node.displayName substringToIndex:8] : (node.displayName ?: @"NODE");
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
-        CGFloat radius = node.normalizedDistance * maxRadius;
-        CGFloat targetDotX = center.x + sin(node.angleRadians) * radius;
-        CGFloat targetDotY = center.y - cos(node.angleRadians) * radius;
+        // Угол цели корректируется относительно текущего азимута смартфона
+        CGFloat relativeAngle = node.angleRadians - _currentHeadingRadians;
         
-        CGFloat adjustedY = targetDotY;
-        if (fabs(targetDotY - lastCalculatedY) < 14.0 && targetDotX > center.x - 40) {
-            adjustedY += (targetDotY >= lastCalculatedY) ? 12.0 : -12.0;
-        }
-        lastCalculatedY = adjustedY;
+        CGFloat radius = node.normalizedDistance * maxRadius;
+        CGFloat targetDotX = center.x + sin(relativeAngle) * radius;
+        CGFloat targetDotY = center.y - cos(relativeAngle) * radius;
         
         BOOL isRightHalf = (targetDotX >= center.x);
         UIView *dot = [btn viewWithTag:101];
@@ -196,12 +203,12 @@
             dot.frame = CGRectMake(0, 5, kTargetDotSize, kTargetDotSize);
             label.frame = CGRectMake(kTargetDotSize + 4, 0, 95, 18);
             label.textAlignment = NSTextAlignmentLeft;
-            btn.center = CGPointMake(targetDotX + (btn.bounds.size.width / 2.0) - (kTargetDotSize / 2.0), adjustedY);
+            btn.center = CGPointMake(targetDotX + (btn.bounds.size.width / 2.0) - (kTargetDotSize / 2.0), targetDotY);
         } else {
             dot.frame = CGRectMake(btn.bounds.size.width - kTargetDotSize, 5, kTargetDotSize, kTargetDotSize);
             label.frame = CGRectMake(0, 0, btn.bounds.size.width - kTargetDotSize - 4, 18);
             label.textAlignment = NSTextAlignmentRight;
-            btn.center = CGPointMake(targetDotX - (btn.bounds.size.width / 2.0) + (kTargetDotSize / 2.0), adjustedY);
+            btn.center = CGPointMake(targetDotX - (btn.bounds.size.width / 2.0) + (kTargetDotSize / 2.0), targetDotY);
         }
         
         BOOL isTarget = [node.identifier isEqualToString:self->_selectedNodeID];
@@ -215,6 +222,7 @@
         }
     }
     
+    // Вектор наведения на цель
     if (self.isTrackingMode && hasTrackedPoint) {
         UIBezierPath *vPath = [UIBezierPath bezierPath];
         [vPath moveToPoint:center];
@@ -280,7 +288,8 @@
     
     NSDate *now = [NSDate date];
     for (SpectraRadarNode *node in _currentNodes) {
-        if (fabs(currentSweepAngle - node.angleRadians) < 0.12) {
+        CGFloat relAngle = fmod(node.angleRadians - _currentHeadingRadians + (M_PI * 2), M_PI * 2);
+        if (fabs(currentSweepAngle - relAngle) < 0.14) {
             if (!node.lastPingedBySweep || [now timeIntervalSinceDate:node.lastPingedBySweep] > (kRadarSweepDuration * 0.8)) {
                 node.lastPingedBySweep = now;
                 TargetTapButton *btn = _nodeButtons[node.identifier];

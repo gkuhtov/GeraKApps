@@ -22,6 +22,7 @@
     SpectraFrequencyMode _currentMode;
     TargetDetailsCard *_detailsCard;
     SpectraRadarNode *_trackedNode;
+    double _currentHeadingDeg;
 }
 @end
 
@@ -31,6 +32,7 @@
     [super viewDidLoad];
     self.view.backgroundColor = SpectraBackgroundColor();
     _currentMode = SpectraFrequencyModeTechno;
+    _currentHeadingDeg = 0.0;
     
     [self setupInterface];
     
@@ -185,7 +187,12 @@
 }
 
 - (void)didUpdateAzimuth:(double)degrees direction:(NSString *)cardinal {
+    _currentHeadingDeg = degrees;
     _azimuthLabel.text = [NSString stringWithFormat:@"AZ: %03.0f° %@", degrees, cardinal];
+    
+    // Передаем реальный азимут в радар и модуль Bluetooth
+    [_radarLens updateCompassHeading:degrees];
+    [_bluetoothManager updateCurrentDeviceAzimuth:degrees];
 }
 
 - (void)didUpdateRadarNodes:(NSArray<SpectraRadarNode *> *)nodes {
@@ -209,7 +216,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла.\n• КНОПКА [ПЕЛЕНГ]: Активация направленного вектора на цель. Звук щелчков переключается на мощность сигнала RSSI (поиск маяка).\n• КНОПКА [MUTE]: Глушит звук."
+                                                                   message:@"• ПЕЛЕНГАТОР РАДИОСИГНАЛА: При повороте смартфона сетка радара ориентируется по реальному компасу.\n• КАК НАЙТИ УСТРОЙСТВО: Медленно вращайтесь вокруг своей оси. Смартфон экранирует радиоволны: когда вы направлены прямо на цель, сигнал RSSI максимален, вектор пеленга выравнивается строго по курсу (вверх), а частота щелчков максимальна!"
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];

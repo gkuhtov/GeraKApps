@@ -8,11 +8,13 @@
     CBCentralManager *_centralManager;
     NSMutableDictionary<NSString *, SpectraRadarNode *> *_nodesMap;
     NSTimer *_cleanupTimer;
+    double _currentAzimuthRadians;
 }
 
 - (instancetype)init {
     if (self = [super init]) {
         _nodesMap = [NSMutableDictionary dictionary];
+        _currentAzimuthRadians = 0.0;
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleAppDidBecomeActive)
                                                      name:UIApplicationDidBecomeActiveNotification
@@ -23,6 +25,10 @@
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)updateCurrentDeviceAzimuth:(double)azimuthDegrees {
+    _currentAzimuthRadians = (azimuthDegrees * M_PI) / 180.0;
 }
 
 - (void)handleAppDidBecomeActive {
@@ -192,12 +198,22 @@
     if (!node) {
         node = [[SpectraRadarNode alloc] init];
         node.identifier = uuid;
-        NSUInteger hashVal = [uuid hash];
-        node.angleRadians = ((hashVal % 360) * M_PI) / 180.0;
+        // Начальный пеленг при первой засечке привязывается к текущему курсу
+        node.angleRadians = _currentAzimuthRadians;
+        node.peakHeadingAngle = _currentAzimuthRadians;
         node.rssi = rssiValue;
+        node.peakRssi = rssiValue;
         _nodesMap[uuid] = node;
     } else {
         node.rssi = (NSInteger)((node.rssi * 0.7) + (rssiValue * 0.3));
+        
+        // Алгоритм радиопеленгации: если сигнал вырос, направление смартфона ближе к цели
+        if (rssiValue > node.peakRssi) {
+            node.peakRssi = rssiValue;
+            node.peakHeadingAngle = _currentAzimuthRadians;
+            // Плавно подтягиваем угол цели к азимуту пикового сигнала
+            node.angleRadians = (node.angleRadians * 0.7) + (_currentAzimuthRadians * 0.3);
+        }
     }
     
     NSString *category = nil;
