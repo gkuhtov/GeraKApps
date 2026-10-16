@@ -1,0 +1,49 @@
+name: Сборка GeraKLab IPA
+
+on:
+  push:
+    paths:
+      - 'Projects/GeraKLab/**'
+      - '.github/workflows/build-geraklab.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Получение кода репозитория
+        uses: actions/checkout@v4
+
+      - name: Установка XcodeGen
+        run: brew install xcodegen
+
+      - name: Генерация проекта Xcode
+        working-directory: Projects/GeraKLab
+        run: xcodegen generate
+
+      - name: Компиляция приложения GeraKLab
+        working-directory: Projects/GeraKLab
+        run: |
+          xcodebuild -project GeraKLab.xcodeproj \
+            -scheme GeraKLab \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Упаковка в IPA
+        working-directory: Projects/GeraKLab
+        run: |
+          mkdir -p Payload
+          APP_PATH=$(find build -name "GeraKLab.app" -type d | head -n 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r GeraKLab.ipa Payload/
+
+      - name: Выгрузка готового IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: GeraKLab-IPA
+          path: Projects/GeraKLab/GeraKLab.ipa

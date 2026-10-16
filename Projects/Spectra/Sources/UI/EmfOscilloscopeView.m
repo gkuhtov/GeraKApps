@@ -50,12 +50,10 @@
     CGFloat midY = self.bounds.size.height / 2.0;
     CGFloat stepX = self.bounds.size.width / (CGFloat)(_maxPoints - 1);
     
-    // Адаптивное отклонение вокруг скользящего среднего
     for (NSInteger i = 0; i < _history.count; i++) {
         double val = [_history[i] doubleValue];
         double diff = val - _runningAverage;
         
-        // Масштабируем колебания в пределах высоты рамки
         CGFloat y = midY - (CGFloat)(diff * 0.7);
         y = MAX(5.0, MIN(self.bounds.size.height - 5.0, y));
         

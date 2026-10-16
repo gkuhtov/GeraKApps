@@ -26,7 +26,6 @@
 }
 
 - (void)handleAppDidBecomeActive {
-    // Обновляем время жизни уже найденных узлов, чтобы их не сдуло таймером
     NSDate *now = [NSDate date];
     for (SpectraRadarNode *node in _nodesMap.allValues) {
         node.lastSeen = now;
@@ -220,7 +219,6 @@
     
     for (NSString *key in _nodesMap) {
         SpectraRadarNode *node = _nodesMap[key];
-        // Увеличили время жизни до 18 секунд, чтобы при временной паузе узлы не слетали
         if (node.lastSeen && [now timeIntervalSinceDate:node.lastSeen] > 18.0) {
             [keysToRemove addObject:key];
         }

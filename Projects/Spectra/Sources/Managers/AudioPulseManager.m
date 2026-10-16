@@ -5,7 +5,6 @@
 @implementation AudioPulseManager {
     NSTimer *_pulseTimer;
     double _currentEmf;
-    SystemSoundID _tickSoundID;
 }
 
 + (instancetype)shared {
@@ -22,7 +21,6 @@
         _isMuted = YES;
         _currentEmf = 0.0;
         
-        // Разрешаем воспроизведение аудио поверх бесшумного режима
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
                                          withOptions:AVAudioSessionCategoryOptionMixWithOthers
                                                error:nil];
@@ -38,7 +36,6 @@
         return;
     }
     
-    // Рассчитываем интервал от 0.9 сек (фон) до 0.09 сек (сильное поле)
     double clamped = MAX(20.0, MIN(300.0, microTeslas));
     double factor = (clamped - 20.0) / 280.0;
     NSTimeInterval interval = 0.9 - (factor * 0.81);
@@ -55,7 +52,6 @@
 
 - (void)playTick {
     if (_isMuted) return;
-    // Короткий четкий тактический щелчок клавиатуры/таймера (1104 / 1057)
     AudioServicesPlayAlertSound(1104);
 }
 
