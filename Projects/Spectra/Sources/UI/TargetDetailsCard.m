@@ -11,6 +11,7 @@
     UILabel *_bearingLabel;
     UIButton *_dismissBtn;
     UIButton *_copyBtn;
+    UIButton *_trackBtn;
     NSString *_currentUUID;
 }
 
@@ -20,6 +21,7 @@
         self.layer.cornerRadius = 14.0;
         self.layer.borderWidth = 1.5;
         self.clipsToBounds = YES;
+        _isTrackingActive = NO;
         
         _titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 8, frame.size.width - 28, 20)];
         _titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:14];
@@ -36,28 +38,35 @@
         [self addSubview:_uuidLabel];
         
         _copyBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-        _copyBtn.frame = CGRectMake(frame.size.width - 90, 36, 76, 22);
+        _copyBtn.frame = CGRectMake(frame.size.width - 92, 28, 80, 22);
         [_copyBtn setTitle:@"[КОПИР]" forState:UIControlStateNormal];
         _copyBtn.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
         [_copyBtn addTarget:self action:@selector(copyUUID) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:_copyBtn];
         
-        _signalLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 64, 120, 18)];
+        _signalLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 64, 110, 18)];
         _signalLabel.font = [UIFont fontWithName:@"Courier" size:12];
         [self addSubview:_signalLabel];
         
-        _distanceLabel = [[UILabel alloc] initWithFrame:CGRectMake(134, 64, 120, 18)];
+        _distanceLabel = [[UILabel alloc] initWithFrame:CGRectMake(124, 64, 110, 18)];
         _distanceLabel.font = [UIFont fontWithName:@"Courier" size:12];
         [self addSubview:_distanceLabel];
         
-        _bearingLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 84, 200, 18)];
+        _bearingLabel = [[UILabel alloc] initWithFrame:CGRectMake(14, 84, 150, 18)];
         _bearingLabel.font = [UIFont fontWithName:@"Courier" size:12];
         [self addSubview:_bearingLabel];
         
+        _trackBtn = [UIButton buttonWithType:UIButtonTypeSystem];
+        _trackBtn.frame = CGRectMake(frame.size.width - 180, 74, 84, 28);
+        [_trackBtn setTitle:@"[ПЕЛЕНГ]" forState:UIControlStateNormal];
+        _trackBtn.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
+        [_trackBtn addTarget:self action:@selector(toggleTrackingTapped) forControlEvents:UIControlEventTouchUpInside];
+        [self addSubview:_trackBtn];
+        
         _dismissBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-        _dismissBtn.frame = CGRectMake(frame.size.width - 105, 74, 92, 28);
+        _dismissBtn.frame = CGRectMake(frame.size.width - 92, 74, 80, 28);
         [_dismissBtn setTitle:@"СБРОС [X]" forState:UIControlStateNormal];
-        _dismissBtn.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
+        _dismissBtn.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
         [_dismissBtn addTarget:self action:@selector(dismissTapped) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:_dismissBtn];
         
@@ -76,6 +85,7 @@
     _distanceLabel.textColor = themeColor;
     _bearingLabel.textColor = themeColor;
     [_copyBtn setTitleColor:themeColor forState:UIControlStateNormal];
+    [_trackBtn setTitleColor:_isTrackingActive ? [UIColor yellowColor] : themeColor forState:UIControlStateNormal];
     [_dismissBtn setTitleColor:[UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
 }
 
@@ -95,6 +105,20 @@
     _bearingLabel.text = [NSString stringWithFormat:@"ПЕЛЕНГ: %03.0f°", bearingDeg];
 }
 
+- (void)toggleTrackingTapped {
+    _isTrackingActive = !_isTrackingActive;
+    [[HapticManager shared] triggerTargetLock];
+    [_trackBtn setTitle:_isTrackingActive ? @"[ВЕДЕНИЕ!]" : @"[ПЕЛЕНГ]" forState:UIControlStateNormal];
+    [_trackBtn setTitleColor:_isTrackingActive ? [UIColor yellowColor] : _themeColor forState:UIControlStateNormal];
+    [self.delegate targetDetailsDidToggleTracking:_isTrackingActive];
+}
+
+- (void)resetTrackingState {
+    _isTrackingActive = NO;
+    [_trackBtn setTitle:@"[ПЕЛЕНГ]" forState:UIControlStateNormal];
+    [_trackBtn setTitleColor:_themeColor forState:UIControlStateNormal];
+}
+
 - (void)copyUUID {
     if (_currentUUID.length > 0) {
         [UIPasteboard generalPasteboard].string = _currentUUID;
@@ -107,6 +131,7 @@
 }
 
 - (void)dismissTapped {
+    [self resetTrackingState];
     [[HapticManager shared] triggerSelectionTick];
     [self.delegate targetDetailsDidRequestDismiss];
 }

@@ -15,8 +15,9 @@
 @implementation RadarLensView {
     CAShapeLayer *_gridLayer;
     CAShapeLayer *_sweepLayer;
+    CAShapeLayer *_vectorLayer;
     UIView *_nodesContainer;
-    NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
+    NSMutableDictionary<NSString * *, TargetTapButton> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
     CADisplayLink *_sweepTracker;
     NSDate *_sweepStartDate;
@@ -36,6 +37,12 @@
         _gridLayer.fillColor = [UIColor clearColor].CGColor;
         _gridLayer.lineWidth = 1.0;
         [self.layer addSublayer:_gridLayer];
+        
+        _vectorLayer = [CAShapeLayer layer];
+        _vectorLayer.lineWidth = 1.5;
+        _vectorLayer.lineDashPattern = @[@4, @2];
+        _vectorLayer.fillColor = [UIColor clearColor].CGColor;
+        [self.layer addSublayer:_vectorLayer];
         
         _nodesContainer = [[UIView alloc] initWithFrame:self.bounds];
         _nodesContainer.userInteractionEnabled = YES;
@@ -96,6 +103,7 @@
     self.layer.borderColor = [themeColor colorWithAlphaComponent:0.85].CGColor;
     _gridLayer.strokeColor = [themeColor colorWithAlphaComponent:0.25].CGColor;
     _sweepLayer.strokeColor = themeColor.CGColor;
+    _vectorLayer.strokeColor = [UIColor yellowColor].CGColor;
     _lockReticle.layer.borderColor = themeColor.CGColor;
     
     for (TargetTapButton *btn in _nodeButtons.allValues) {
@@ -129,8 +137,9 @@
     CGFloat maxRadius = MIN(center.x, center.y) - 28.0;
     
     NSMutableSet *activeIDs = [NSMutableSet set];
+    CGPoint trackedPoint = CGPointZero;
+    BOOL hasTrackedPoint = NO;
     
-    // Сортируем узлы по углу для аккуратного разведения меток
     NSArray<SpectraRadarNode *> *sortedNodes = [nodes sortedArrayUsingComparator:^NSComparisonResult(SpectraRadarNode *n1, SpectraRadarNode *n2) {
         if (n1.angleRadians < n2.angleRadians) return NSOrderedAscending;
         if (n1.angleRadians > n2.angleRadians) return NSOrderedDescending;
@@ -175,14 +184,12 @@
         CGFloat targetDotX = center.x + sin(node.angleRadians) * radius;
         CGFloat targetDotY = center.y - cos(node.angleRadians) * radius;
         
-        // Разводим близкие по вертикали метки на 14 pt, чтобы не накладывались
         CGFloat adjustedY = targetDotY;
         if (fabs(targetDotY - lastCalculatedY) < 14.0 && targetDotX > center.x - 40) {
             adjustedY += (targetDotY >= lastCalculatedY) ? 12.0 : -12.0;
         }
         lastCalculatedY = adjustedY;
         
-        // Если точка в правой половине — текст справа, если в левой — текст аккуратно слева
         BOOL isRightHalf = (targetDotX >= center.x);
         UIView *dot = [btn viewWithTag:101];
         if (isRightHalf) {
@@ -197,9 +204,26 @@
             btn.center = CGPointMake(targetDotX - (btn.bounds.size.width / 2.0) + (kTargetDotSize / 2.0), adjustedY);
         }
         
-        if ([node.identifier isEqualToString:self->_selectedNodeID]) {
+        BOOL isTarget = [node.identifier isEqualToString:self->_selectedNodeID];
+        if (isTarget) {
             self->_lockReticle.center = CGPointMake(targetDotX, targetDotY);
+            trackedPoint = CGPointMake(targetDotX, targetDotY);
+            hasTrackedPoint = YES;
+            btn.alpha = 1.0;
+        } else {
+            btn.alpha = self.isTrackingMode ? 0.15 : 0.50;
         }
+    }
+    
+    // Вектор слежения от центра
+    if (self.isTrackingMode && hasTrackedPoint) {
+        UIBezierPath *vPath = [UIBezierPath bezierPath];
+        [vPath moveToPoint:center];
+        [vPath addLineToPoint:trackedPoint];
+        _vectorLayer.path = vPath.CGPath;
+        _vectorLayer.hidden = NO;
+    } else {
+        _vectorLayer.hidden = YES;
     }
     
     NSArray *allKeys = [_nodeButtons allKeys];
@@ -244,6 +268,8 @@
 - (void)clearSelection {
     _selectedNodeID = nil;
     _lockReticle.hidden = YES;
+    _vectorLayer.hidden = YES;
+    self.isTrackingMode = NO;
 }
 
 - (void)checkSweepCollisions {
@@ -263,7 +289,7 @@
                     btn.alpha = 1.0;
                     [[HapticManager shared] triggerRadarPing];
                     [UIView animateWithDuration:kRadarSweepDuration * 0.85 animations:^{
-                        btn.alpha = 0.50;
+                        btn.alpha = (self.isTrackingMode && ![node.identifier isEqualToString:self->_selectedNodeID]) ? 0.15 : 0.50;
                     }];
                 }
             }

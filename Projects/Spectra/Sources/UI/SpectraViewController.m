@@ -21,6 +21,7 @@
     BluetoothManager *_bluetoothManager;
     SpectraFrequencyMode _currentMode;
     TargetDetailsCard *_detailsCard;
+    SpectraRadarNode *_trackedNode;
 }
 @end
 
@@ -71,7 +72,6 @@
     _nodesCountLabel.text = @"NODES: 0 SCANNING...";
     [_radarLens addSubview:_nodesCountLabel];
     
-    // Кнопка звука достаточной ширины (68 pt), чтобы надпись никогда не сжималась
     _muteButton = [UIButton buttonWithType:UIButtonTypeSystem];
     _muteButton.frame = CGRectMake(width - 108, kRadarHeight - 44, 68, 34);
     [_muteButton setTitle:@"[MUTE]" forState:UIControlStateNormal];
@@ -110,7 +110,6 @@
     audio.isMuted = !audio.isMuted;
     [[HapticManager shared] triggerSelectionTick];
     
-    // Если звук активен -> кнопка предлагает [MUTE], если заглушен -> [UNMUTE]
     if (audio.isMuted) {
         [_muteButton setTitle:@"[UNMUTE]" forState:UIControlStateNormal];
         _muteButton.alpha = 0.55;
@@ -138,6 +137,7 @@
 #pragma mark - RadarLensViewDelegate
 
 - (void)radarDidSelectNode:(SpectraRadarNode *)node {
+    _trackedNode = node;
     [_detailsCard configureWithNode:node];
     _detailsCard.hidden = NO;
     [UIView animateWithDuration:0.25 animations:^{
@@ -148,7 +148,16 @@
 
 #pragma mark - TargetDetailsCardDelegate
 
+- (void)targetDetailsDidToggleTracking:(BOOL)isTracking {
+    _radarLens.isTrackingMode = isTracking;
+    if (isTracking && _trackedNode) {
+        [[AudioPulseManager shared] updateWithTrackingRssi:_trackedNode.rssi];
+    }
+}
+
 - (void)targetDetailsDidRequestDismiss {
+    _trackedNode = nil;
+    _radarLens.isTrackingMode = NO;
     [UIView animateWithDuration:0.2 animations:^{
         self->_detailsCard.alpha = 0.0;
         self->_oscilloscope.alpha = 1.0;
@@ -163,7 +172,11 @@
 - (void)didUpdateEmfValue:(double)microTeslas {
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
     [_oscilloscope pushValue:microTeslas];
-    [[AudioPulseManager shared] updateWithEmf:microTeslas];
+    
+    // Если активен пеленг конкретного узла, звук берется от RSSI, а не от магнитометра
+    if (!_radarLens.isTrackingMode) {
+        [[AudioPulseManager shared] updateWithEmf:microTeslas];
+    }
     
     if (microTeslas >= kEmfCriticalLevel) {
         [[HapticManager shared] triggerCriticalImpact];
@@ -179,6 +192,17 @@
 - (void)didUpdateRadarNodes:(NSArray<SpectraRadarNode *> *)nodes {
     _nodesCountLabel.text = [NSString stringWithFormat:@"NODES: %lu ACTIVE", (unsigned long)nodes.count];
     [_radarLens updateWithNodes:nodes];
+    
+    if (_radarLens.isTrackingMode && _trackedNode) {
+        for (SpectraRadarNode *n in nodes) {
+            if ([n.identifier isEqualToString:_trackedNode.identifier]) {
+                _trackedNode = n;
+                [_detailsCard configureWithNode:n];
+                [[AudioPulseManager shared] updateWithTrackingRssi:n.rssi];
+                break;
+            }
+        }
+    }
 }
 
 #pragma mark - Справка
@@ -186,7 +210,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• КНОПКА [MUTE]: Глушит процедурные щелчки спектрометра.\n• ОСЦИЛЛОГРАФ: Динамическая кривая колебаний ЭМ-поля.\n• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла."
+                                                                   message:@"• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла.\n• КНОПКА [ПЕЛЕНГ]: Активация направленного вектора на цель. Звук щелчков переключается на мощность сигнала RSSI (поиск маяка).\n• КНОПКА [MUTE]: Глушит звук."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];

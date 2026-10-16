@@ -3,7 +3,6 @@
 
 @implementation AudioPulseManager {
     NSTimer *_pulseTimer;
-    double _currentEmf;
     AVAudioPlayer *_player;
     NSData *_clickAudioData;
 }
@@ -19,9 +18,7 @@
 
 - (instancetype)init {
     if (self = [super init]) {
-        _isMuted = NO; // По умолчанию звук активен
-        _currentEmf = 0.0;
-        
+        _isMuted = NO;
         [self configureAudioSession];
         [self generateTacticalClickPCM];
     }
@@ -38,7 +35,7 @@
 
 - (void)generateTacticalClickPCM {
     const int sampleRate = 44100;
-    const double duration = 0.012; // 12 мс резкий щелчок
+    const double duration = 0.012;
     const int numSamples = (int)(sampleRate * duration);
     
     NSMutableData *pcm = [NSMutableData data];
@@ -84,7 +81,6 @@
 }
 
 - (void)updateWithEmf:(double)microTeslas {
-    _currentEmf = microTeslas;
     if (_isMuted) {
         [self stop];
         return;
@@ -93,8 +89,24 @@
     double clamped = MAX(20.0, MIN(350.0, microTeslas));
     double factor = (clamped - 20.0) / 330.0;
     NSTimeInterval interval = 0.85 - (factor * 0.77);
+    [self scheduleTimerWithInterval:interval];
+}
+
+- (void)updateWithTrackingRssi:(NSInteger)rssi {
+    if (_isMuted) {
+        [self stop];
+        return;
+    }
     
-    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.1) {
+    // В режиме пеленгатора: от 0.9 сек (-90 dBm) до 0.06 сек (-35 dBm в упор)
+    double clamped = MAX((double)kBleMinRssiThreshold, MIN((double)kBleMaxRssiThreshold, (double)rssi));
+    double factor = (clamped - (double)kBleMinRssiThreshold) / (double)(kBleMaxRssiThreshold - kBleMinRssiThreshold);
+    NSTimeInterval interval = 0.90 - (factor * 0.84);
+    [self scheduleTimerWithInterval:interval];
+}
+
+- (void)scheduleTimerWithInterval:(NSTimeInterval)interval {
+    if (!_pulseTimer || fabs(_pulseTimer.timeInterval - interval) > 0.08) {
         [_pulseTimer invalidate];
         _pulseTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                        target:self
