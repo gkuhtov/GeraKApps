@@ -5,13 +5,17 @@
 #import "BluetoothManager.h"
 #import "HapticManager.h"
 #import "TargetDetailsCard.h"
+#import "EmfOscilloscopeView.h"
+#import "AudioPulseManager.h"
 
 @interface SpectraViewController () <SensorManagerDelegate, BluetoothManagerDelegate, RadarLensViewDelegate, TargetDetailsCardDelegate> {
     RadarLensView *_radarLens;
+    EmfOscilloscopeView *_oscilloscope;
     UILabel *_azimuthLabel;
     UILabel *_emfLabel;
     UILabel *_nodesCountLabel;
     UIButton *_helpButton;
+    UIButton *_muteButton;
     UISegmentedControl *_freqControl;
     SensorManager *_sensorManager;
     BluetoothManager *_bluetoothManager;
@@ -40,6 +44,7 @@
 
 - (void)setupInterface {
     CGFloat width = self.view.bounds.size.width - (kRadarHorizontalMargin * 2);
+    
     _radarLens = [[RadarLensView alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, kRadarTopOffset, width, kRadarHeight)];
     _radarLens.delegate = self;
     [self.view addSubview:_radarLens];
@@ -66,6 +71,14 @@
     _nodesCountLabel.text = @"NODES: 0 SCANNING...";
     [_radarLens addSubview:_nodesCountLabel];
     
+    _muteButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    _muteButton.frame = CGRectMake(width - 92, kRadarHeight - 44, 46, 34);
+    [_muteButton setTitle:@"[MUTE]" forState:UIControlStateNormal];
+    [_muteButton setTitleColor:initialColor forState:UIControlStateNormal];
+    _muteButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
+    [_muteButton addTarget:self action:@selector(toggleMute) forControlEvents:UIControlEventTouchUpInside];
+    [_radarLens addSubview:_muteButton];
+    
     _helpButton = [UIButton buttonWithType:UIButtonTypeSystem];
     _helpButton.frame = CGRectMake(width - 44, kRadarHeight - 44, 34, 34);
     [_helpButton setTitle:@"[?]" forState:UIControlStateNormal];
@@ -74,8 +87,13 @@
     [_helpButton addTarget:self action:@selector(openHelpPopup) forControlEvents:UIControlEventTouchUpInside];
     [_radarLens addSubview:_helpButton];
     
-    // Карточка захваченной цели
-    _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, CGRectGetMaxY(_radarLens.frame) + 12, width, 115)];
+    // Осциллограф под линзой радара
+    CGFloat oscY = CGRectGetMaxY(_radarLens.frame) + 10;
+    _oscilloscope = [[EmfOscilloscopeView alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, oscY, width, 55)];
+    [self.view addSubview:_oscilloscope];
+    
+    // Выдвижная карточка узла (поверх осциллографа при клике)
+    _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, oscY - 4, width, 115)];
     _detailsCard.delegate = self;
     _detailsCard.alpha = 0.0;
     _detailsCard.hidden = YES;
@@ -88,16 +106,26 @@
     [self.view addSubview:_freqControl];
 }
 
+- (void)toggleMute {
+    AudioPulseManager *audio = [AudioPulseManager shared];
+    audio.isMuted = !audio.isMuted;
+    [[HapticManager shared] triggerSelectionTick];
+    
+    [_muteButton setTitle:audio.isMuted ? @"[MUTE]" : @"[АКУСТ]" forState:UIControlStateNormal];
+}
+
 - (void)frequencyModeChanged:(UISegmentedControl *)sender {
     _currentMode = (SpectraFrequencyMode)sender.selectedSegmentIndex;
     [[HapticManager shared] triggerSelectionTick];
     
     UIColor *newColor = SpectraPrimaryColorForMode(_currentMode);
     _radarLens.themeColor = newColor;
+    _oscilloscope.themeColor = newColor;
     _detailsCard.themeColor = newColor;
     _azimuthLabel.textColor = newColor;
     _emfLabel.textColor = newColor;
     _nodesCountLabel.textColor = newColor;
+    [_muteButton setTitleColor:newColor forState:UIControlStateNormal];
     [_helpButton setTitleColor:newColor forState:UIControlStateNormal];
 }
 
@@ -108,6 +136,7 @@
     _detailsCard.hidden = NO;
     [UIView animateWithDuration:0.25 animations:^{
         self->_detailsCard.alpha = 1.0;
+        self->_oscilloscope.alpha = 0.15;
     }];
 }
 
@@ -116,6 +145,7 @@
 - (void)targetDetailsDidRequestDismiss {
     [UIView animateWithDuration:0.2 animations:^{
         self->_detailsCard.alpha = 0.0;
+        self->_oscilloscope.alpha = 1.0;
     } completion:^(BOOL finished) {
         self->_detailsCard.hidden = YES;
         [self->_radarLens clearSelection];
@@ -126,6 +156,8 @@
 
 - (void)didUpdateEmfValue:(double)microTeslas {
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
+    [_oscilloscope pushValue:microTeslas];
+    [[AudioPulseManager shared] updateWithEmf:microTeslas];
     
     if (microTeslas >= kEmfCriticalLevel) {
         [[HapticManager shared] triggerCriticalImpact];
@@ -148,7 +180,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• НАЖАТИЕ НА ТОЧКУ: Захват узла в прицел и открытие карточки телеметрии.\n• RSSI / ДИСТ: Расчет удаленности источника сигнала.\n• КНОПКА [КОПИР]: Быстрое сохранение UUID в буфер."
+                                                                   message:@"• ОСЦИЛЛОГРАФ: Живой график ЭМ-фона в реальном времени.\n• [MUTE / АКУСТ]: Включение акустического пульса (щелчки синхронизированы с датчиком индукции).\n• НАЖАТИЕ НА ТОЧКУ: Вызов телеметрии узла."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];
