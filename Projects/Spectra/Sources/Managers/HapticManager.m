@@ -38,6 +38,10 @@
     [_rigidGen impactOccurredWithIntensity:0.9];
 }
 
+- (void)triggerSwitchClick {
+    [_mediumGen impactOccurredWithIntensity:0.8];
+}
+
 - (void)triggerWarningPulse {
     [_mediumGen impactOccurred];
 }

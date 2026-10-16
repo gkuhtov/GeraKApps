@@ -19,45 +19,56 @@
     self.view.backgroundColor = SpectraBackgroundColor();
     
     CGFloat width = self.view.bounds.size.width;
+    CGFloat height = self.view.bounds.size.height;
     
-    _headerLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 20, width - 120, 26)];
-    _headerLabel.font = [UIFont fontWithName:@"Courier-Bold" size:16];
+    _headerLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, 22, width - 120, 24)];
+    _headerLabel.font = [UIFont fontWithName:@"Courier-Bold" size:15];
     _headerLabel.textColor = self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno);
     _headerLabel.text = @"БОРТОВОЙ ЖУРНАЛ ЭФИРА";
     [self.view addSubview:_headerLabel];
     
     _closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _closeButton.frame = CGRectMake(width - 90, 16, 74, 32);
+    _closeButton.frame = CGRectMake(width - 94, 18, 78, 30);
     [_closeButton setTitle:@"ЗАКРЫТЬ" forState:UIControlStateNormal];
     _closeButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
     [_closeButton setTitleColor:self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno) forState:UIControlStateNormal];
     [_closeButton addTarget:self action:@selector(closeTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_closeButton];
     
-    _tableView = [[UITableView alloc] initWithFrame:CGRectMake(16, 60, width - 32, self.view.bounds.size.height - 130) style:UITableViewStylePlain];
+    CGFloat bottomOffset = 68.0;
+    _tableView = [[UITableView alloc] initWithFrame:CGRectMake(14, 58, width - 28, height - 58 - bottomOffset - 24) style:UITableViewStylePlain];
     _tableView.backgroundColor = [UIColor colorWithRed:0.02 green:0.04 blue:0.03 alpha:1.0];
     _tableView.layer.cornerRadius = 10.0;
     _tableView.layer.borderWidth = 1.2;
     _tableView.layer.borderColor = [(self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)) colorWithAlphaComponent:0.6].CGColor;
     _tableView.dataSource = self;
     _tableView.delegate = self;
-    _tableView.separatorColor = [(self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)) colorWithAlphaComponent:0.2];
+    _tableView.rowHeight = 44.0;
+    _tableView.separatorColor = [(self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)) colorWithAlphaComponent:0.25];
     [self.view addSubview:_tableView];
     
-    CGFloat btnY = self.view.bounds.size.height - 60;
+    CGFloat btnY = CGRectGetMaxY(_tableView.frame) + 12;
     _exportButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _exportButton.frame = CGRectMake(16, btnY, 130, 36);
+    _exportButton.frame = CGRectMake(14, btnY, 134, 34);
+    _exportButton.backgroundColor = [[self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)] colorWithAlphaComponent:0.12];
+    _exportButton.layer.cornerRadius = 6.0;
+    _exportButton.layer.borderWidth = 1.0;
+    _exportButton.layer.borderColor = (self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)).CGColor;
     [_exportButton setTitle:@"[ЭКСПОРТ .TXT]" forState:UIControlStateNormal];
-    _exportButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
+    _exportButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
     [_exportButton setTitleColor:self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno) forState:UIControlStateNormal];
     [_exportButton addTarget:self action:@selector(exportTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_exportButton];
     
     _clearButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _clearButton.frame = CGRectMake(width - 120, btnY, 104, 36);
+    _clearButton.frame = CGRectMake(width - 124, btnY, 110, 34);
+    _clearButton.backgroundColor = [UIColor colorWithRed:1.0 green:0.2 blue:0.2 alpha:0.12];
+    _clearButton.layer.cornerRadius = 6.0;
+    _clearButton.layer.borderWidth = 1.0;
+    _clearButton.layer.borderColor = [UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:0.8].CGColor;
     [_clearButton setTitle:@"[ОЧИСТКА]" forState:UIControlStateNormal];
-    _clearButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
-    [_clearButton setTitleColor:[UIColor colorWithRed:1.0 green:0.3 blue:0.3 alpha:1.0] forState:UIControlStateNormal];
+    _clearButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
+    [_clearButton setTitleColor:[UIColor colorWithRed:1.0 green:0.35 blue:0.35 alpha:1.0] forState:UIControlStateNormal];
     [_clearButton addTarget:self action:@selector(clearTapped) forControlEvents:UIControlEventTouchUpInside];
     [self.view addSubview:_clearButton];
 }
@@ -93,13 +104,12 @@
         cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:cellID];
         cell.backgroundColor = [UIColor clearColor];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.textLabel.font = [UIFont fontWithName:@"Courier-Bold" size:11];
-        cell.detailTextLabel.font = [UIFont fontWithName:@"Courier" size:9];
-        cell.detailTextLabel.numberOfLines = 2;
+        cell.textLabel.font = [UIFont fontWithName:@"Courier-Bold" size:10.5];
+        cell.detailTextLabel.font = [UIFont fontWithName:@"Courier" size:8.5];
     }
     
     SpectraLogRecord *rec = [BlackboxLogManager shared].records[indexPath.row];
-    cell.textLabel.text = [rec formattedLogLine];
+    cell.textLabel.text = [rec formattedTimeAndType];
     cell.detailTextLabel.text = rec.details;
     
     UIColor *color = self.themeColor ?: SpectraPrimaryColorForMode(SpectraFrequencyModeTechno);

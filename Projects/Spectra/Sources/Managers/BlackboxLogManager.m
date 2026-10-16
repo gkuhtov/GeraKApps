@@ -2,7 +2,7 @@
 
 @implementation SpectraLogRecord
 
-- (NSString *)formattedLogLine {
+- (NSString *)formattedTimeAndType {
     NSDateFormatter *df = [[NSDateFormatter alloc] init];
     df.dateFormat = @"HH:mm:ss.SS";
     NSString *timeStr = [df stringFromDate:self.timestamp];
@@ -13,7 +13,11 @@
         case SpectraLogEventTypeNodeTracked:    tag = @"[LOCK]"; break;
         case SpectraLogEventTypeEmfAnomaly:     tag = @"[WARN]"; break;
     }
-    return [NSString stringWithFormat:@"%@ %@ %@ :: %@", timeStr, tag, self.title, self.details];
+    return [NSString stringWithFormat:@"%@ %@ %@", timeStr, tag, self.title];
+}
+
+- (NSString *)formattedExportLine {
+    return [NSString stringWithFormat:@"%@ | %@", [self formattedTimeAndType], self.details];
 }
 
 @end
@@ -21,7 +25,8 @@
 @implementation BlackboxLogManager {
     NSMutableArray<SpectraLogRecord *> *_logStore;
     NSMutableSet<NSString *> *_loggedUUIDs;
-    NSDate *_lastEmfLogTime;
+    double _runningEmfAverage;
+    NSDate *_lastEmfAnomalyTime;
 }
 
 + (instancetype)shared {
@@ -37,6 +42,7 @@
     if (self = [super init]) {
         _logStore = [NSMutableArray array];
         _loggedUUIDs = [NSMutableSet set];
+        _runningEmfAverage = 0.0;
     }
     return self;
 }
@@ -52,7 +58,7 @@
     SpectraLogRecord *rec = [[SpectraLogRecord alloc] init];
     rec.timestamp = [NSDate date];
     rec.type = SpectraLogEventTypeNodeDiscovered;
-    rec.title = [NSString stringWithFormat:@"NEW NODE: %@", [name uppercaseString]];
+    rec.title = [name uppercaseString];
     rec.details = [NSString stringWithFormat:@"TYPE: %@ | RSSI: %ld dBm | BRG: %03.0f° | ID: %@", category ?: @"RAW", (long)rssi, bearing, uuid];
     
     [_logStore insertObject:rec atIndex:0];
@@ -62,26 +68,37 @@
     SpectraLogRecord *rec = [[SpectraLogRecord alloc] init];
     rec.timestamp = [NSDate date];
     rec.type = SpectraLogEventTypeNodeTracked;
-    rec.title = [NSString stringWithFormat:@"TRACKING: %@", [name uppercaseString]];
-    rec.details = [NSString stringWithFormat:@"LOCKED AT: %ld dBm | TARGET: %@", (long)rssi, uuid];
+    rec.title = [NSString stringWithFormat:@"TARGET LOCK: %@", [name uppercaseString]];
+    rec.details = [NSString stringWithFormat:@"LOCKED AT: %ld dBm | ID: %@", (long)rssi, uuid];
     
     [_logStore insertObject:rec atIndex:0];
 }
 
-- (void)logEmfAnomaly:(double)microTeslas azimuth:(double)azimuth {
-    NSDate *now = [NSDate date];
-    if (_lastEmfLogTime && [now timeIntervalSinceDate:_lastEmfLogTime] < 4.0) {
-        return; // Антиспам повторных логов всплеска поля
+- (void)processEmfValue:(double)microTeslas azimuth:(double)azimuth {
+    if (_runningEmfAverage <= 0.1) {
+        _runningEmfAverage = microTeslas;
+        return;
     }
-    _lastEmfLogTime = now;
     
-    SpectraLogRecord *rec = [[SpectraLogRecord alloc] init];
-    rec.timestamp = now;
-    rec.type = SpectraLogEventTypeEmfAnomaly;
-    rec.title = @"EMF FLUX SPIKE";
-    rec.details = [NSString stringWithFormat:@"MAGNITUDE: %.1f µT | AZ: %03.0f°", microTeslas, azimuth];
+    double delta = microTeslas - _runningEmfAverage;
+    _runningEmfAverage = (_runningEmfAverage * 0.98) + (microTeslas * 0.02);
     
-    [_logStore insertObject:rec atIndex:0];
+    // Логируем только резкий скачок (> 40 µT над фоновым уровнем)
+    if (delta > 40.0) {
+        NSDate *now = [NSDate date];
+        if (_lastEmfAnomalyTime && [now timeIntervalSinceDate:_lastEmfAnomalyTime] < 6.0) {
+            return;
+        }
+        _lastEmfAnomalyTime = now;
+        
+        SpectraLogRecord *rec = [[SpectraLogRecord alloc] init];
+        rec.timestamp = now;
+        rec.type = SpectraLogEventTypeEmfAnomaly;
+        rec.title = [NSString stringWithFormat:@"EMF SPIKE (+%.0f µT)", delta];
+        rec.details = [NSString stringWithFormat:@"FLUX: %.1f µT | AZ: %03.0f°", microTeslas, azimuth];
+        
+        [_logStore insertObject:rec atIndex:0];
+    }
 }
 
 - (void)clearLog {
@@ -97,7 +114,7 @@
     [outStr appendString:@"=====================================\n\n"];
     
     for (SpectraLogRecord *rec in [_logStore reverseObjectEnumerator]) {
-        [outStr appendFormat:@"%@\n", [rec formattedLogLine]];
+        [outStr appendFormat:@"%@\n", [rec formattedExportLine]];
     }
     return [outStr copy];
 }

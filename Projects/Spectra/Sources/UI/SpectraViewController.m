@@ -77,7 +77,6 @@
     _nodesCountLabel.text = @"NODES: 0 SCANNING...";
     [_radarLens addSubview:_nodesCountLabel];
     
-    // Кнопка открытия журнала BLACKBOX [LOG]
     _logButton = [UIButton buttonWithType:UIButtonTypeSystem];
     _logButton.frame = CGRectMake(width - 165, kRadarHeight - 44, 55, 34);
     [_logButton setTitle:@"[LOG]" forState:UIControlStateNormal];
@@ -143,7 +142,7 @@
 
 - (void)frequencyModeChanged:(UISegmentedControl *)sender {
     _currentMode = (SpectraFrequencyMode)sender.selectedSegmentIndex;
-    [[HapticManager shared] triggerSelectionTick];
+    [[HapticManager shared] triggerSwitchClick];
     
     UIColor *newColor = SpectraPrimaryColorForMode(_currentMode);
     _radarLens.themeColor = newColor;
@@ -197,9 +196,8 @@
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
     [_oscilloscope pushValue:microTeslas];
     
-    if (microTeslas >= 120.0) {
-        [[BlackboxLogManager shared] logEmfAnomaly:microTeslas azimuth:_currentHeadingDeg];
-    }
+    // Умный фильтр дельты всплесков (без спама стационарного фона)
+    [[BlackboxLogManager shared] processEmfValue:microTeslas azimuth:_currentHeadingDeg];
     
     if (!_radarLens.isTrackingMode) {
         [[AudioPulseManager shared] updateWithEmf:microTeslas];
@@ -245,7 +243,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• [LOG]: Открытие тактического бортового журнала сессии (Blackbox) с фиксацией найденных устройств, всплесков поля и возможностью экспорта в TXT.\n• [ПЕЛЕНГ]: Наведение вектора на цель с привязкой к компасу."
+                                                                   message:@"• CRT-РАДАР: Полосы развертки люминофора и тактическое перекрестие прицела.\n• BLACKBOX: Запись только реальных аномалий поля (дельты) и обнаруженных радиоузлов с экспортом в .TXT.\n• ТУМБЛЕР ЧАСТОТ: Тактильный щелчок при переключении палитр."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];

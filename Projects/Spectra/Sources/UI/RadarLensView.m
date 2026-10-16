@@ -14,9 +14,10 @@
 
 @implementation RadarLensView {
     CAShapeLayer *_gridLayer;
+    CAShapeLayer *_reticleCrosshairLayer;
     CAShapeLayer *_sweepLayer;
     CAShapeLayer *_vectorLayer;
-    CAShapeLayer *_compassArrowLayer;
+    CAShapeLayer *_scanlinesLayer;
     UIView *_nodesContainer;
     NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
@@ -41,16 +42,16 @@
         _gridLayer.lineWidth = 1.0;
         [self.layer addSublayer:_gridLayer];
         
+        _reticleCrosshairLayer = [CAShapeLayer layer];
+        _reticleCrosshairLayer.fillColor = [UIColor clearColor].CGColor;
+        _reticleCrosshairLayer.lineWidth = 1.5;
+        [self.layer addSublayer:_reticleCrosshairLayer];
+        
         _vectorLayer = [CAShapeLayer layer];
         _vectorLayer.lineWidth = 1.5;
         _vectorLayer.lineDashPattern = @[@4, @2];
         _vectorLayer.fillColor = [UIColor clearColor].CGColor;
         [self.layer addSublayer:_vectorLayer];
-        
-        _compassArrowLayer = [CAShapeLayer layer];
-        _compassArrowLayer.lineWidth = 2.0;
-        _compassArrowLayer.fillColor = [UIColor clearColor].CGColor;
-        [self.layer addSublayer:_compassArrowLayer];
         
         _nodesContainer = [[UIView alloc] initWithFrame:self.bounds];
         _nodesContainer.userInteractionEnabled = YES;
@@ -66,8 +67,16 @@
         _lockReticle.hidden = YES;
         [_nodesContainer addSubview:_lockReticle];
         
+        // Слой CRT-полос развертки (Scanlines)
+        _scanlinesLayer = [CAShapeLayer layer];
+        _scanlinesLayer.fillColor = [UIColor clearColor].CGColor;
+        _scanlinesLayer.lineWidth = 1.0;
+        _scanlinesLayer.opacity = 0.12;
+        [self.layer addSublayer:_scanlinesLayer];
+        
         [self setThemeColor:SpectraPrimaryColorForMode(SpectraFrequencyModeTechno)];
         [self drawRadarGrid];
+        [self drawCrtScanlines];
         
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(startSweepAnimation)
@@ -96,8 +105,16 @@
     [path addLineToPoint:CGPointMake(center.x + maxRadius, center.y)];
     [path moveToPoint:CGPointMake(center.x, center.y - maxRadius)];
     [path addLineToPoint:CGPointMake(center.x, center.y + maxRadius)];
-    
     _gridLayer.path = path.CGPath;
+    
+    // Центральное перекрестие прицела (reticle crosshair)
+    UIBezierPath *reticle = [UIBezierPath bezierPath];
+    CGFloat rSize = 10.0;
+    [reticle moveToPoint:CGPointMake(center.x - rSize, center.y)];
+    [reticle addLineToPoint:CGPointMake(center.x + rSize, center.y)];
+    [reticle moveToPoint:CGPointMake(center.x, center.y - rSize)];
+    [reticle addLineToPoint:CGPointMake(center.x, center.y + rSize)];
+    _reticleCrosshairLayer.path = reticle.CGPath;
     
     UIBezierPath *sweepPath = [UIBezierPath bezierPath];
     [sweepPath moveToPoint:center];
@@ -106,13 +123,23 @@
     _sweepLayer.lineWidth = 2.0;
 }
 
+- (void)drawCrtScanlines {
+    UIBezierPath *scanlines = [UIBezierPath bezierPath];
+    for (CGFloat y = 0; y < self.bounds.size.height; y += 4.0) {
+        [scanlines moveToPoint:CGPointMake(0, y)];
+        [scanlines addLineToPoint:CGPointMake(self.bounds.size.width, y)];
+    }
+    _scanlinesLayer.path = scanlines.CGPath;
+}
+
 - (void)setThemeColor:(UIColor *)themeColor {
     _themeColor = themeColor;
     self.layer.borderColor = [themeColor colorWithAlphaComponent:0.85].CGColor;
     _gridLayer.strokeColor = [themeColor colorWithAlphaComponent:0.25].CGColor;
+    _reticleCrosshairLayer.strokeColor = [themeColor colorWithAlphaComponent:0.8].CGColor;
     _sweepLayer.strokeColor = themeColor.CGColor;
+    _scanlinesLayer.strokeColor = [UIColor blackColor].CGColor;
     _vectorLayer.strokeColor = [UIColor yellowColor].CGColor;
-    _compassArrowLayer.strokeColor = themeColor.CGColor;
     _lockReticle.layer.borderColor = themeColor.CGColor;
     
     for (TargetTapButton *btn in _nodeButtons.allValues) {
@@ -142,8 +169,6 @@
 
 - (void)updateCompassHeading:(double)headingDegrees {
     _currentHeadingRadians = (headingDegrees * M_PI) / 180.0;
-    
-    // Вращаем линзу целей и сетку относительно севера
     if (_currentNodes.count > 0) {
         [self updateWithNodes:_currentNodes];
     }
@@ -190,9 +215,7 @@
         NSString *shortName = (node.displayName && node.displayName.length > 8) ? [node.displayName substringToIndex:8] : (node.displayName ?: @"NODE");
         label.text = [NSString stringWithFormat:@"%@ [%ld]", shortName, (long)node.rssi];
         
-        // Угол цели корректируется относительно текущего азимута смартфона
         CGFloat relativeAngle = node.angleRadians - _currentHeadingRadians;
-        
         CGFloat radius = node.normalizedDistance * maxRadius;
         CGFloat targetDotX = center.x + sin(relativeAngle) * radius;
         CGFloat targetDotY = center.y - cos(relativeAngle) * radius;
@@ -222,7 +245,6 @@
         }
     }
     
-    // Вектор наведения на цель
     if (self.isTrackingMode && hasTrackedPoint) {
         UIBezierPath *vPath = [UIBezierPath bezierPath];
         [vPath moveToPoint:center];
