@@ -173,7 +173,6 @@
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
     [_oscilloscope pushValue:microTeslas];
     
-    // Если активен пеленг конкретного узла, звук берется от RSSI, а не от магнитометра
     if (!_radarLens.isTrackingMode) {
         [[AudioPulseManager shared] updateWithEmf:microTeslas];
     }

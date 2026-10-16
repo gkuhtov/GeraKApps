@@ -98,7 +98,6 @@
         return;
     }
     
-    // В режиме пеленгатора: от 0.9 сек (-90 dBm) до 0.06 сек (-35 dBm в упор)
     double clamped = MAX((double)kBleMinRssiThreshold, MIN((double)kBleMaxRssiThreshold, (double)rssi));
     double factor = (clamped - (double)kBleMinRssiThreshold) / (double)(kBleMaxRssiThreshold - kBleMinRssiThreshold);
     NSTimeInterval interval = 0.90 - (factor * 0.84);

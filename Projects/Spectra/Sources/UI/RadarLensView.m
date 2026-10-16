@@ -17,7 +17,7 @@
     CAShapeLayer *_sweepLayer;
     CAShapeLayer *_vectorLayer;
     UIView *_nodesContainer;
-    NSMutableDictionary<NSString * *, TargetTapButton> *_nodeButtons;
+    NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
     NSArray<SpectraRadarNode *> *_currentNodes;
     CADisplayLink *_sweepTracker;
     NSDate *_sweepStartDate;
@@ -215,7 +215,6 @@
         }
     }
     
-    // Вектор слежения от центра
     if (self.isTrackingMode && hasTrackedPoint) {
         UIBezierPath *vPath = [UIBezierPath bezierPath];
         [vPath moveToPoint:center];
