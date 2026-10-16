@@ -5,9 +5,10 @@
 @interface SpectraRadarNode : NSObject
 @property (nonatomic, copy) NSString *identifier;
 @property (nonatomic, copy) NSString *displayName;
+@property (nonatomic, copy) NSString *deviceCategory;
 @property (nonatomic, assign) NSInteger rssi;
 @property (nonatomic, assign) CGFloat angleRadians;
-@property (nonatomic, assign) CGFloat normalizedDistance; // 0.1 (близко) ... 1.0 (край радара)
+@property (nonatomic, assign) CGFloat normalizedDistance;
 @property (nonatomic, strong) NSDate *lastSeen;
 @property (nonatomic, strong) NSDate *lastPingedBySweep;
 @end

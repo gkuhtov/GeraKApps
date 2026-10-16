@@ -75,7 +75,7 @@
     [_radarLens addSubview:_helpButton];
     
     // Карточка захваченной цели
-    _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, CGRectGetMaxY(_radarLens.frame) + 12, width, 105)];
+    _detailsCard = [[TargetDetailsCard alloc] initWithFrame:CGRectMake(kRadarHorizontalMargin, CGRectGetMaxY(_radarLens.frame) + 12, width, 115)];
     _detailsCard.delegate = self;
     _detailsCard.alpha = 0.0;
     _detailsCard.hidden = YES;
