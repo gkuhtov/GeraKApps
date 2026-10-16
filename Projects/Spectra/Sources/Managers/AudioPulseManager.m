@@ -77,6 +77,7 @@
     
     _clickAudioData = wav;
     _player = [[AVAudioPlayer alloc] initWithData:_clickAudioData error:nil];
+    _player.pan = 0.0;
     [_player prepareToPlay];
 }
 
@@ -85,6 +86,7 @@
         [self stop];
         return;
     }
+    _player.pan = 0.0;
     
     double clamped = MAX(20.0, MIN(350.0, microTeslas));
     double factor = (clamped - 20.0) / 330.0;
@@ -92,11 +94,15 @@
     [self scheduleTimerWithInterval:interval];
 }
 
-- (void)updateWithTrackingRssi:(NSInteger)rssi {
+- (void)updateWithTrackingRssi:(NSInteger)rssi relativeAngle:(double)angleRadians {
     if (_isMuted) {
         [self stop];
         return;
     }
+    
+    // Пространственная стерео-панорама (-1.0 лево, +1.0 право)
+    double panVal = sin(angleRadians);
+    _player.pan = (float)MAX(-1.0, MIN(1.0, panVal));
     
     double clamped = MAX((double)kBleMinRssiThreshold, MIN((double)kBleMaxRssiThreshold, (double)rssi));
     double factor = (clamped - (double)kBleMinRssiThreshold) / (double)(kBleMaxRssiThreshold - kBleMinRssiThreshold);

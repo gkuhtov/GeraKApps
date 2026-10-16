@@ -17,6 +17,7 @@
     CAShapeLayer *_reticleCrosshairLayer;
     CAShapeLayer *_sweepLayer;
     CAShapeLayer *_vectorLayer;
+    CAShapeLayer *_polarHeatLayer;
     CAShapeLayer *_scanlinesLayer;
     UIView *_nodesContainer;
     NSMutableDictionary<NSString *, TargetTapButton *> *_nodeButtons;
@@ -35,6 +36,7 @@
         self.clipsToBounds = YES;
         
         _currentHeadingRadians = 0.0;
+        _rangeFilter = SpectraRangeFilterAll;
         _nodeButtons = [NSMutableDictionary dictionary];
         
         _gridLayer = [CAShapeLayer layer];
@@ -42,13 +44,19 @@
         _gridLayer.lineWidth = 1.0;
         [self.layer addSublayer:_gridLayer];
         
+        _polarHeatLayer = [CAShapeLayer layer];
+        _polarHeatLayer.fillColor = [UIColor clearColor].CGColor;
+        _polarHeatLayer.lineWidth = 3.0;
+        _polarHeatLayer.opacity = 0.6;
+        [self.layer addSublayer:_polarHeatLayer];
+        
         _reticleCrosshairLayer = [CAShapeLayer layer];
         _reticleCrosshairLayer.fillColor = [UIColor clearColor].CGColor;
         _reticleCrosshairLayer.lineWidth = 1.5;
         [self.layer addSublayer:_reticleCrosshairLayer];
         
         _vectorLayer = [CAShapeLayer layer];
-        _vectorLayer.lineWidth = 1.5;
+        _vectorLayer.lineWidth = 1.8;
         _vectorLayer.lineDashPattern = @[@4, @2];
         _vectorLayer.fillColor = [UIColor clearColor].CGColor;
         [self.layer addSublayer:_vectorLayer];
@@ -138,6 +146,7 @@
     _sweepLayer.strokeColor = themeColor.CGColor;
     _scanlinesLayer.strokeColor = [UIColor blackColor].CGColor;
     _vectorLayer.strokeColor = [UIColor yellowColor].CGColor;
+    _polarHeatLayer.strokeColor = [themeColor colorWithAlphaComponent:0.5].CGColor;
     _lockReticle.layer.borderColor = themeColor.CGColor;
     
     for (TargetTapButton *btn in _nodeButtons.allValues) {
@@ -180,8 +189,18 @@
     NSMutableSet *activeIDs = [NSMutableSet set];
     CGPoint trackedPoint = CGPointZero;
     BOOL hasTrackedPoint = NO;
+    CGFloat trackedRelAngle = 0.0;
+    
+    NSInteger minRssiCutoff = -100;
+    if (_rangeFilter == SpectraRangeFilterMedium) minRssiCutoff = -80;
+    if (_rangeFilter == SpectraRangeFilterClose) minRssiCutoff = -65;
     
     for (SpectraRadarNode *node in nodes) {
+        BOOL isTarget = [node.identifier isEqualToString:self->_selectedNodeID];
+        if (node.rssi < minRssiCutoff && !isTarget) {
+            continue;
+        }
+        
         [activeIDs addObject:node.identifier];
         TargetTapButton *btn = _nodeButtons[node.identifier];
         
@@ -232,10 +251,10 @@
             btn.center = CGPointMake(targetDotX - (btn.bounds.size.width / 2.0) + (kTargetDotSize / 2.0), targetDotY);
         }
         
-        BOOL isTarget = [node.identifier isEqualToString:self->_selectedNodeID];
         if (isTarget) {
             self->_lockReticle.center = CGPointMake(targetDotX, targetDotY);
             trackedPoint = CGPointMake(targetDotX, targetDotY);
+            trackedRelAngle = relativeAngle;
             hasTrackedPoint = YES;
             btn.alpha = 1.0;
         } else {
@@ -243,14 +262,25 @@
         }
     }
     
+    // Вектор наведения и полярная дуга сектора приёма
     if (self.isTrackingMode && hasTrackedPoint) {
         UIBezierPath *vPath = [UIBezierPath bezierPath];
         [vPath moveToPoint:center];
         [vPath addLineToPoint:trackedPoint];
         _vectorLayer.path = vPath.CGPath;
         _vectorLayer.hidden = NO;
+        
+        // Полярная роза: подсвечиваем сектор 40 градусов вокруг луча цели
+        UIBezierPath *arc = [UIBezierPath bezierPath];
+        CGFloat arcRadius = maxRadius * 0.95;
+        CGFloat startA = trackedRelAngle - (M_PI / 2.0) - 0.35;
+        CGFloat endA   = trackedRelAngle - (M_PI / 2.0) + 0.35;
+        [arc addArcWithCenter:center radius:arcRadius startAngle:startA endAngle:endA clockwise:YES];
+        _polarHeatLayer.path = arc.CGPath;
+        _polarHeatLayer.hidden = NO;
     } else {
         _vectorLayer.hidden = YES;
+        _polarHeatLayer.hidden = YES;
     }
     
     NSArray *allKeys = [_nodeButtons allKeys];
@@ -296,6 +326,7 @@
     _selectedNodeID = nil;
     _lockReticle.hidden = YES;
     _vectorLayer.hidden = YES;
+    _polarHeatLayer.hidden = YES;
     self.isTrackingMode = NO;
 }
 
