@@ -7,6 +7,8 @@
 #import "TargetDetailsCard.h"
 #import "EmfOscilloscopeView.h"
 #import "AudioPulseManager.h"
+#import "BlackboxLogManager.h"
+#import "BlackboxViewController.h"
 
 @interface SpectraViewController () <SensorManagerDelegate, BluetoothManagerDelegate, RadarLensViewDelegate, TargetDetailsCardDelegate> {
     RadarLensView *_radarLens;
@@ -16,6 +18,7 @@
     UILabel *_nodesCountLabel;
     UIButton *_helpButton;
     UIButton *_muteButton;
+    UIButton *_logButton;
     UISegmentedControl *_freqControl;
     SensorManager *_sensorManager;
     BluetoothManager *_bluetoothManager;
@@ -68,14 +71,23 @@
     _emfLabel.text = @"0.0 µT";
     [_radarLens addSubview:_emfLabel];
     
-    _nodesCountLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, kRadarHeight - 36, 170, 24)];
+    _nodesCountLabel = [[UILabel alloc] initWithFrame:CGRectMake(16, kRadarHeight - 36, 150, 24)];
     _nodesCountLabel.font = [UIFont fontWithName:@"Courier-Bold" size:13];
     _nodesCountLabel.textColor = initialColor;
     _nodesCountLabel.text = @"NODES: 0 SCANNING...";
     [_radarLens addSubview:_nodesCountLabel];
     
+    // Кнопка открытия журнала BLACKBOX [LOG]
+    _logButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    _logButton.frame = CGRectMake(width - 165, kRadarHeight - 44, 55, 34);
+    [_logButton setTitle:@"[LOG]" forState:UIControlStateNormal];
+    [_logButton setTitleColor:initialColor forState:UIControlStateNormal];
+    _logButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
+    [_logButton addTarget:self action:@selector(openLogViewer) forControlEvents:UIControlEventTouchUpInside];
+    [_radarLens addSubview:_logButton];
+    
     _muteButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _muteButton.frame = CGRectMake(width - 108, kRadarHeight - 44, 68, 34);
+    _muteButton.frame = CGRectMake(width - 105, kRadarHeight - 44, 66, 34);
     [_muteButton setTitle:@"[MUTE]" forState:UIControlStateNormal];
     [_muteButton setTitleColor:initialColor forState:UIControlStateNormal];
     _muteButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:12];
@@ -83,7 +95,7 @@
     [_radarLens addSubview:_muteButton];
     
     _helpButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    _helpButton.frame = CGRectMake(width - 38, kRadarHeight - 44, 30, 34);
+    _helpButton.frame = CGRectMake(width - 36, kRadarHeight - 44, 28, 34);
     [_helpButton setTitle:@"[?]" forState:UIControlStateNormal];
     [_helpButton setTitleColor:initialColor forState:UIControlStateNormal];
     _helpButton.titleLabel.font = [UIFont fontWithName:@"Courier-Bold" size:14];
@@ -105,6 +117,14 @@
     _freqControl.selectedSegmentIndex = 0;
     [_freqControl addTarget:self action:@selector(frequencyModeChanged:) forControlEvents:UIControlEventValueChanged];
     [self.view addSubview:_freqControl];
+}
+
+- (void)openLogViewer {
+    [[HapticManager shared] triggerSelectionTick];
+    BlackboxViewController *logVC = [[BlackboxViewController alloc] init];
+    logVC.themeColor = SpectraPrimaryColorForMode(_currentMode);
+    logVC.modalPresentationStyle = UIModalPresentationFormSheet;
+    [self presentViewController:logVC animated:YES completion:nil];
 }
 
 - (void)toggleMute {
@@ -132,6 +152,7 @@
     _azimuthLabel.textColor = newColor;
     _emfLabel.textColor = newColor;
     _nodesCountLabel.textColor = newColor;
+    [_logButton setTitleColor:newColor forState:UIControlStateNormal];
     [_muteButton setTitleColor:newColor forState:UIControlStateNormal];
     [_helpButton setTitleColor:newColor forState:UIControlStateNormal];
 }
@@ -153,6 +174,7 @@
 - (void)targetDetailsDidToggleTracking:(BOOL)isTracking {
     _radarLens.isTrackingMode = isTracking;
     if (isTracking && _trackedNode) {
+        [[BlackboxLogManager shared] logNodeTrackingStarted:_trackedNode.displayName uuid:_trackedNode.identifier rssi:_trackedNode.rssi];
         [[AudioPulseManager shared] updateWithTrackingRssi:_trackedNode.rssi];
     }
 }
@@ -175,6 +197,10 @@
     _emfLabel.text = [NSString stringWithFormat:@"%.1f µT", microTeslas];
     [_oscilloscope pushValue:microTeslas];
     
+    if (microTeslas >= 120.0) {
+        [[BlackboxLogManager shared] logEmfAnomaly:microTeslas azimuth:_currentHeadingDeg];
+    }
+    
     if (!_radarLens.isTrackingMode) {
         [[AudioPulseManager shared] updateWithEmf:microTeslas];
     }
@@ -189,8 +215,6 @@
 - (void)didUpdateAzimuth:(double)degrees direction:(NSString *)cardinal {
     _currentHeadingDeg = degrees;
     _azimuthLabel.text = [NSString stringWithFormat:@"AZ: %03.0f° %@", degrees, cardinal];
-    
-    // Передаем реальный азимут в радар и модуль Bluetooth
     [_radarLens updateCompassHeading:degrees];
     [_bluetoothManager updateCurrentDeviceAzimuth:degrees];
 }
@@ -198,6 +222,11 @@
 - (void)didUpdateRadarNodes:(NSArray<SpectraRadarNode *> *)nodes {
     _nodesCountLabel.text = [NSString stringWithFormat:@"NODES: %lu ACTIVE", (unsigned long)nodes.count];
     [_radarLens updateWithNodes:nodes];
+    
+    for (SpectraRadarNode *node in nodes) {
+        double bearingDeg = (node.angleRadians * 180.0) / M_PI;
+        [[BlackboxLogManager shared] logNodeDiscovered:node.displayName category:node.deviceCategory rssi:node.rssi bearing:bearingDeg uuid:node.identifier];
+    }
     
     if (_radarLens.isTrackingMode && _trackedNode) {
         for (SpectraRadarNode *n in nodes) {
@@ -216,7 +245,7 @@
 - (void)openHelpPopup {
     [[HapticManager shared] triggerWarningPulse];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"СПРАВКА SPECTRA"
-                                                                   message:@"• ПЕЛЕНГАТОР РАДИОСИГНАЛА: При повороте смартфона сетка радара ориентируется по реальному компасу.\n• КАК НАЙТИ УСТРОЙСТВО: Медленно вращайтесь вокруг своей оси. Смартфон экранирует радиоволны: когда вы направлены прямо на цель, сигнал RSSI максимален, вектор пеленга выравнивается строго по курсу (вверх), а частота щелчков максимальна!"
+                                                                   message:@"• [LOG]: Открытие тактического бортового журнала сессии (Blackbox) с фиксацией найденных устройств, всплесков поля и возможностью экспорта в TXT.\n• [ПЕЛЕНГ]: Наведение вектора на цель с привязкой к компасу."
                                                             preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"Тест Taptic" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
         [[HapticManager shared] triggerCriticalImpact];
